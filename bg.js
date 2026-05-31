@@ -1,7 +1,7 @@
-// Flowing "veins" + LED signal pulses on canvas.
-// Veins undulate slowly; bright lilac signal packets travel along them (fwd/back)
-// and bloom where they pass — like signals being sent across a network.
-// Motion intensifies while a job runs (window.__pulse). Honors prefers-reduced-motion.
+// Calm flowing "veins" + occasional signal impulses.
+// The veins drift slowly. Now and then a single bright impulse glides along ONE vein
+// like a signal — a clean comet head with a soft trailing glow. Sparse and elegant,
+// a touch livelier while a job runs. Honors prefers-reduced-motion.
 
 (() => {
   const canvas = document.getElementById("bg");
@@ -24,78 +24,90 @@
   window.__pulse = window.__pulse || 0;
   let energy = 0;
 
-  const LINES = 7;
+  const LINES = 6;
   const veins = Array.from({ length: LINES }, (_, i) => ({
-    yBase: 0.14 + (i / (LINES - 1)) * 0.72,
-    amp: 0.018 + Math.sin(i * 1.7) * 0.012 + 0.02,
-    freq: 1.1 + (i % 3) * 0.5,
-    speed: 0.06 + (i % 4) * 0.02,
+    yBase: 0.16 + (i / (LINES - 1)) * 0.68,
+    amp: 0.016 + Math.sin(i * 1.7) * 0.010 + 0.018,
+    freq: 1.0 + (i % 3) * 0.45,
+    speed: 0.05 + (i % 4) * 0.018,
     phase: i * 0.9,
     hue: i % 2 ? 262 : 250,
-    width: 1 + (i % 3) * 0.6,
-    alpha: 0.10 + (i % 3) * 0.05,
-    pulses: [],
-    nextSpawn: rnd(0, 3),
+    width: 1 + (i % 3) * 0.5,
+    alpha: 0.07 + (i % 3) * 0.03,
   }));
 
   function veinY(v, nx, t) {
     const y0 = v.yBase * H;
-    const amp = v.amp * H * (1 + energy * 1.5);
-    const sp = v.speed * (1 + energy * 2.0);
+    const amp = v.amp * H * (1 + energy * 1.2);
+    const sp = v.speed * (1 + energy * 1.6);
     return y0 +
       Math.sin(nx * Math.PI * 2 * v.freq + t * sp + v.phase) * amp +
-      Math.sin(nx * Math.PI * 2 * (v.freq * 1.9) + t * sp * 0.6) * amp * 0.35;
+      Math.sin(nx * Math.PI * 2 * (v.freq * 1.9) + t * sp * 0.6) * amp * 0.32;
   }
 
-  function drawVein(v, t, glow) {
+  function drawVein(v, t) {
     ctx.beginPath();
-    const step = 14 * dpr;
+    const step = 16 * dpr;
     for (let x = -step; x <= W + step; x += step) {
       const nx = x / W, y = veinY(v, nx, t);
       x === -step ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
     }
     const g = ctx.createLinearGradient(0, 0, W, 0);
     g.addColorStop(0, `hsla(${v.hue},90%,55%,0)`);
-    g.addColorStop(0.5, `hsla(${v.hue},95%,60%,${v.alpha + energy * 0.10})`);
+    g.addColorStop(0.5, `hsla(${v.hue},92%,60%,${v.alpha + energy * 0.05})`);
     g.addColorStop(1, `hsla(${v.hue},90%,55%,0)`);
     ctx.strokeStyle = g;
     ctx.lineWidth = v.width * dpr;
-    ctx.shadowBlur = glow * dpr;
-    ctx.shadowColor = `hsla(${v.hue},95%,55%,.5)`;
+    ctx.shadowBlur = (7 + energy * 8) * dpr;
+    ctx.shadowColor = `hsla(${v.hue},92%,55%,.35)`;
     ctx.stroke();
     ctx.shadowBlur = 0;
   }
 
-  function drawPulse(v, p, t) {
-    const nx = p.pos;
-    if (nx < -0.05 || nx > 1.05) return;
-    const x = nx * W, y = veinY(v, nx, t);
-    const fade = Math.min(1, p.life * 2) * Math.min(1, (1 - Math.abs(nx - 0.5) * 0.4));
-    const r = (10 + energy * 8) * dpr;
+  // ---- sparse signal impulses (global pool) ----
+  const impulses = [];
+  let nextSpawn = 1.5;
 
-    // bright bloom blob (additive)
+  function spawn() {
+    const v = veins[Math.floor(Math.random() * veins.length)];
+    const dir = Math.random() < 0.5 ? 1 : -1;
+    impulses.push({ v, dir, pos: dir === 1 ? -0.05 : 1.05, speed: rnd(0.11, 0.18) });
+  }
+
+  function drawImpulse(p, t) {
+    const nx = p.pos;
+    const x = nx * W, y = veinY(p.v, nx, t);
+    // edge fade so it appears/disappears softly
+    const edge = Math.min(1, nx / 0.12, (1 - nx) / 0.12);
+    const a = Math.max(0, Math.min(1, edge));
+    if (a <= 0) return;
+
+    // soft trailing glow behind the head
+    ctx.beginPath();
+    const span = 0.10;
+    for (let k = 0; k <= 14; k++) {
+      const sx = nx - p.dir * span * (k / 14);
+      ctx.lineTo(sx * W, veinY(p.v, sx, t));
+    }
+    const tg = ctx.createLinearGradient(x, 0, (nx - p.dir * span) * W, 0);
+    tg.addColorStop(0, `hsla(275,100%,85%,${0.55 * a})`);
+    tg.addColorStop(1, `hsla(265,100%,70%,0)`);
+    ctx.strokeStyle = tg;
+    ctx.lineWidth = (p.v.width + 0.8) * dpr;
+    ctx.shadowBlur = 10 * dpr;
+    ctx.shadowColor = "hsla(270,100%,72%,.7)";
+    ctx.stroke();
+
+    // comet head
+    const r = 6 * dpr;
     const rg = ctx.createRadialGradient(x, y, 0, x, y, r);
-    rg.addColorStop(0, `hsla(276,100%,92%,${0.9 * fade})`);
-    rg.addColorStop(0.4, `hsla(265,100%,78%,${0.5 * fade})`);
-    rg.addColorStop(1, `hsla(260,100%,60%,0)`);
+    rg.addColorStop(0, `hsla(280,100%,95%,${0.95 * a})`);
+    rg.addColorStop(0.5, `hsla(268,100%,80%,${0.5 * a})`);
+    rg.addColorStop(1, `hsla(262,100%,65%,0)`);
     ctx.fillStyle = rg;
     ctx.beginPath();
     ctx.arc(x, y, r, 0, Math.PI * 2);
     ctx.fill();
-
-    // bright trailing segment along the vein
-    ctx.beginPath();
-    const span = 0.06, dirSign = p.dir;
-    for (let k = 0; k <= 10; k++) {
-      const sx = nx - dirSign * span * (k / 10);
-      const px = sx * W, py = veinY(v, sx, t);
-      k === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
-    }
-    ctx.strokeStyle = `hsla(276,100%,88%,${0.7 * fade})`;
-    ctx.lineWidth = (v.width + 1.2) * dpr;
-    ctx.shadowBlur = 14 * dpr;
-    ctx.shadowColor = "hsla(270,100%,75%,.9)";
-    ctx.stroke();
     ctx.shadowBlur = 0;
   }
 
@@ -104,33 +116,27 @@
     energy += ((window.__pulse || 0) - energy) * 0.04;
     ctx.clearRect(0, 0, W, H);
 
-    const glow = 9 + energy * 18;
-    for (const v of veins) drawVein(v, t, glow);
+    for (const v of veins) drawVein(v, t);
 
-    // signal pulses (additive blending for LED glow)
+    // spawn rarely: idle ~5–8s, working ~2–3s; cap 1 idle / 3 working
+    const cap = energy > 0.4 ? 3 : 1;
+    nextSpawn -= 1 / 60;
+    if (nextSpawn <= 0 && impulses.length < cap) {
+      spawn();
+      nextSpawn = energy > 0.4 ? rnd(2, 3) : rnd(5, 8);
+    }
     ctx.globalCompositeOperation = "lighter";
-    const dt = 1 / 60;
-    const spawnEvery = 2.6 - energy * 1.6;     // faster spawns while working
-    for (const v of veins) {
-      v.nextSpawn -= dt;
-      if (v.nextSpawn <= 0 && v.pulses.length < 2) {
-        const dir = Math.random() < 0.5 ? 1 : -1;
-        v.pulses.push({ pos: dir === 1 ? -0.04 : 1.04, dir, speed: rnd(0.10, 0.22) * (1 + energy), life: 0 });
-        v.nextSpawn = rnd(spawnEvery * 0.6, spawnEvery * 1.6);
-      }
-      for (let i = v.pulses.length - 1; i >= 0; i--) {
-        const p = v.pulses[i];
-        p.pos += p.dir * p.speed * dt;
-        p.life += dt;
-        drawPulse(v, p, t);
-        if (p.pos < -0.06 || p.pos > 1.06) v.pulses.splice(i, 1);
-      }
+    for (let i = impulses.length - 1; i >= 0; i--) {
+      const p = impulses[i];
+      p.pos += p.dir * p.speed * (1 / 60);
+      drawImpulse(p, t);
+      if (p.pos < -0.08 || p.pos > 1.08) impulses.splice(i, 1);
     }
     ctx.globalCompositeOperation = "source-over";
 
     if (!reduce) requestAnimationFrame(frame);
   }
 
-  if (reduce) { energy = 0.15; frame(0); }
+  if (reduce) { energy = 0.1; frame(0); }
   else requestAnimationFrame(frame);
 })();
