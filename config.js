@@ -1,0 +1,17 @@
+// TONSPUR config. Public, client-safe values only.
+// Supabase anon key is designed to be embedded in the client (RLS protects data).
+// Filled in after the one-time Supabase project setup; empty = cloud login disabled
+// (the app then runs in local-key mode via localStorage).
+export const SUPABASE = {
+  url: "",        // e.g. "https://xxxx.supabase.co"
+  anon: "",       // e.g. "eyJhbGciOi..."
+};
+
+// Groq Speech-to-Text pricing (USD per hour of audio) — estimates, verify on groq.com.
+export const PRICING = {
+  "whisper-large-v3": 0.111,
+  "whisper-large-v3-turbo": 0.04,
+};
+// Cleanup LLM (USD per 1M tokens) — llama-3.3-70b-versatile, rough.
+export const CLEANUP_PRICE = { in: 0.59, out: 0.79 };
+export const USD_EUR = 0.92; // rough conversion for display

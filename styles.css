@@ -165,6 +165,7 @@ input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(13
 /* ---- modal ---- */
 .modal{position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;
   padding:20px;background:rgba(5,4,8,.74);backdrop-filter:blur(5px)}
+.modal[hidden]{display:none}
 .modal-card{max-width:460px;width:100%}
 .modal-card h2{font-family:"Bricolage Grotesque",sans-serif;margin:0 0 10px}
 .modal-card p{color:var(--mut);font-size:13px}
@@ -179,4 +180,39 @@ input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(13
   border-color:var(--accent-deep);color:#fff;font-weight:600}
 
 @keyframes rise{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+
+/* ---- sub-note, sr-label ---- */
+.sub-note{color:var(--mut2);font-size:11px;margin:8px 2px 0}
+.sr-label{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+
+/* ---- cost / quota panel ---- */
+.cost{grid-column:1 / -1}
+.cost-row{display:flex;justify-content:space-between;align-items:baseline;gap:12px;font-size:13px;color:var(--mut)}
+.cost-row b{font-family:"Bricolage Grotesque",sans-serif;color:var(--cream);font-size:15px}
+.cost-row.big-row b{color:var(--accent-2);font-size:18px}
+.cost-sub{color:var(--mut2);font-size:11.5px;margin-top:5px}
+.calc{margin-top:16px;border-top:1px solid var(--line);padding-top:14px}
+.calc>label{margin-bottom:8px}
+.calc-row{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.calc-row input{width:110px}
+.calc-unit{color:var(--mut)}
+@media(max-width:780px){.cost{grid-column:auto}}
+
+/* ---- auth / modal forms ---- */
+.modal-card form label{margin-top:2px}
+.modal-card input[type=email]{width:100%;background:var(--ink2);border:1px solid var(--line);color:var(--cream);border-radius:10px;padding:11px 12px;font-family:inherit;font-size:14px;margin-top:6px}
+.modal-card input[type=email]:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(139,92,246,.14)}
+.modal-card input[type=password]{margin-top:6px}
+.field-err{color:var(--red);font-size:12.5px;min-height:16px;margin:10px 0 4px}
+.full-btn{width:100%;min-height:44px;font-family:inherit;font-weight:600;cursor:pointer;border:0;border-radius:10px;
+  background:linear-gradient(180deg,var(--accent),var(--accent-deep));color:#fff;font-size:14px;
+  box-shadow:0 10px 26px -12px rgba(139,92,246,.8);transition:.15s}
+.full-btn:hover{transform:translateY(-1px)}
+.full-btn:disabled{opacity:.6;cursor:default;transform:none}
+.auth-foot{display:flex;justify-content:space-between;align-items:center;margin-top:14px;gap:10px}
+.linklike{background:none;border:0;color:var(--accent-2);font-family:inherit;font-size:12.5px;cursor:pointer;padding:6px 0}
+.linklike:hover{color:var(--cream)}
+.linklike.muted{color:var(--mut2)}
+.keychip.ok{border-color:var(--accent-deep)}
+
 @media(prefers-reduced-motion:reduce){*{animation:none!important}}
