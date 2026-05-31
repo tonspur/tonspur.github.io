@@ -3,16 +3,16 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>TONSPUR — Verwandle jedes Video in perfekten Text</title>
+<title>TONSPUR — Vom Clip zum perfekten Transkript</title>
 <meta name="description" content="Lokale Tonextraktion, KI-Transkription mit large-v3 und automatische Veredelung. Kostenlos, privat, in deinem Browser.">
 <meta name="theme-color" content="#8b5cf6">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="mask-icon" href="favicon.svg" color="#8b5cf6">
 <link rel="apple-touch-icon" href="favicon.svg">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="landing.css?v=7">
+<link rel="preconnect" href="https://api.fontshare.com">
+<link rel="preconnect" href="https://cdn.fontshare.com" crossorigin>
+<link href="https://api.fontshare.com/v2/css?f[]=clash-display@600,700&f[]=satoshi@400,500,700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="landing.css?v=8">
 </head>
 <body>
 <canvas id="bg" aria-hidden="true"></canvas>
@@ -28,7 +28,7 @@
   <nav class="nav-links">
     <a href="#how">Workflow</a>
     <a href="#features">Features</a>
-    <a href="#stats">Warum</a>
+    <a href="#stats">Technik</a>
   </nav>
   <a class="btn btn-sm" href="app.html">Studio öffnen</a>
 </header>
@@ -39,10 +39,9 @@
   <section class="hero">
     <div class="hero-txt reveal">
       <div class="kicker">Transkriptions-Studio</div>
-      <h1>Verwandle jedes Video<br>in <span class="grad">perfekten Text</span>.</h1>
-      <p class="lead">Die Tonspur wird lokal in deinem Browser extrahiert, von Whisper&nbsp;large-v3
-        transkribiert und per KI veredelt — saubere Zeichensetzung, keine erfundenen Wörter.
-        Auch zwei Stunden lange Aufnahmen.</p>
+      <h1>Vom Clip zum<br><span class="grad">perfekten Transkript</span>.</h1>
+      <p class="lead">Lokale Tonextraktion, Whisper&nbsp;large‑v3 und KI‑Korrektur in einem Schritt.
+        Wortgenau, mit Zeitstempeln, in Deutsch und Englisch — auch bei zwei Stunden Material.</p>
       <div class="cta-row">
         <a class="btn btn-lg" href="app.html">Jetzt transkribieren</a>
         <a class="btn-ghost" href="#how">So funktioniert's
@@ -124,14 +123,15 @@
   <!-- STATS (count-up) -->
   <section class="section stats" id="stats">
     <div class="section-h reveal">
-      <div class="kicker">Warum TONSPUR</div>
-      <h2>Schlank, lokal, ehrlich.</h2>
+      <div class="kicker">Die Technik</div>
+      <h2>Ein Modell der Extraklasse.</h2>
+      <p>Du nutzt Whisper&nbsp;large‑v3 auf Groq — eines der stärksten Spracherkennungs-Modelle der Welt.</p>
     </div>
     <div class="stat-grid reveal">
-      <div class="statc"><div class="num" data-count="100" data-suffix="%">0</div><div class="lab">lokal verarbeitet</div></div>
-      <div class="statc"><div class="num" data-count="0" data-suffix=" €">0</div><div class="lab">Abo &amp; Fixkosten</div></div>
-      <div class="statc"><div class="num" data-count="4">0</div><div class="lab">Export-Formate</div></div>
-      <div class="statc"><div class="num" data-count="2">0</div><div class="lab">Sprachen · DE / EN</div></div>
+      <div class="statc"><div class="num" data-count="1550000000" data-sep="1">0</div><div class="lab">Parameter im Modell</div></div>
+      <div class="statc"><div class="num" data-count="5000000" data-sep="1" data-suffix="+">0</div><div class="lab">Std. Trainingsdaten</div></div>
+      <div class="statc"><div class="num" data-count="99">0</div><div class="lab">Sprachen verstanden</div></div>
+      <div class="statc"><div class="num" data-count="200" data-suffix="×">0</div><div class="lab">schneller als Echtzeit</div></div>
     </div>
   </section>
 
@@ -159,7 +159,7 @@
 
 </main>
 
-<script src="bg.js?v=7"></script>
-<script src="landing.js?v=7"></script>
+<script src="bg.js?v=8"></script>
+<script src="landing.js?v=8"></script>
 </body>
 </html>

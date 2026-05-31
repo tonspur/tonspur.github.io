@@ -19,19 +19,21 @@
     eq.appendChild(s);
   }
 
-  // count-up
+  // count-up (with optional thousands separators + suffix)
+  const fmt = (n, sep) => sep ? Math.round(n).toLocaleString("de-DE") : String(Math.round(n));
   function countUp(el) {
     const target = parseFloat(el.dataset.count || "0");
     const suffix = el.dataset.suffix || "";
     const prefix = el.dataset.prefix || "";
-    if (reduce || target === 0) { el.textContent = prefix + target + suffix; return; }
-    const dur = 1400, t0 = performance.now();
+    const sep = el.dataset.sep === "1";
+    if (reduce || target === 0) { el.textContent = prefix + fmt(target, sep) + suffix; return; }
+    const dur = 1800, t0 = performance.now();
     const tick = (now) => {
       const p = Math.min(1, (now - t0) / dur);
-      const e = 1 - Math.pow(1 - p, 3); // ease-out cubic
-      el.textContent = prefix + Math.round(target * e) + suffix;
+      const e = 1 - Math.pow(1 - p, 4); // ease-out quart — dramatic climb
+      el.textContent = prefix + fmt(target * e, sep) + suffix;
       if (p < 1) requestAnimationFrame(tick);
-      else el.textContent = prefix + target + suffix;
+      else el.textContent = prefix + fmt(target, sep) + suffix;
     };
     requestAnimationFrame(tick);
   }

@@ -9,11 +9,13 @@ const lsSet = (k, v) => { try { localStorage.setItem(k, v); return true; } catch
 const lsDel = (k) => { try { localStorage.removeItem(k); } catch {} };
 
 const state = {
+  mode: "single",          // single | runner | calc
   lang: "de", model: "whisper-large-v3", formats: new Set(["txt", "srt"]),
   clean: true, glossary: "", concurrency: 2,
   key: lsGet("groq_key"), keyStored: true,
   account: null,          // { email } when signed in
 };
+const effConc = () => (state.mode === "single" ? 1 : state.concurrency);
 
 const queue = [];
 let jobSeq = 0, active = 0;
@@ -24,7 +26,7 @@ const releaseSlot = (s) => { if (idleSlots.length < state.concurrency) idleSlots
 /* ---------------- runner pool ---------------- */
 function updatePulse() { window.__pulse = active > 0 ? 0.9 : 0.15; }
 function pump() {
-  while (active < state.concurrency) {
+  while (active < effConc()) {
     const job = queue.find((j) => j.status === "queued");
     if (!job) break;
     job.status = "run"; active++;
@@ -125,12 +127,7 @@ function jobUI(job) {
     },
   };
 }
-function updateStats() {
-  $("#statJobs").textContent = queue.length;
-  const min = queue.filter((j) => j.status === "done" || j.segs?.length).reduce((a, j) => a + (j.duration || 0), 0) / 60;
-  $("#statMin").textContent = Math.round(min);
-  renderCalc();
-}
+function updateStats() { renderCalc(); }
 function addFile(file) {
   const job = { id: ++jobSeq, file, lang: state.lang, formats: new Set(state.formats), clean: state.clean, glossary: state.glossary, status: "queued", segs: [], duration: 0 };
   job.ui = jobUI(job);
@@ -186,7 +183,7 @@ function initControls() {
   const seg = (id, set) => $(id).addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; $(id).querySelectorAll("button").forEach((x) => x.classList.remove("on")); b.classList.add("on"); set(b.dataset.v); });
   seg("#lang", (v) => state.lang = v);
   seg("#model", (v) => { state.model = v; renderCalc(); });
-  seg("#conc", (v) => { state.concurrency = +v; $("#concNote").textContent = v === "1" ? "eins nach dem anderen" : `${v} Videos gleichzeitig · mehr braucht mehr Arbeitsspeicher`; pump(); });
+  seg("#conc", (v) => { state.concurrency = +v; pump(); });
 
   $("#fmts").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; if (b.classList.contains("on") && state.formats.size === 1) return; b.classList.toggle("on"); b.classList.contains("on") ? state.formats.add(b.dataset.f) : state.formats.delete(b.dataset.f); });
   const ct = $("#cleanToggle");
@@ -285,8 +282,21 @@ function initAuthUI() {
 }
 
 /* ---------------- boot ---------------- */
+function initModes() {
+  const sw = $("#modeSwitch");
+  sw.addEventListener("click", (e) => {
+    const b = e.target.closest("button"); if (!b) return;
+    sw.querySelectorAll("button").forEach((x) => x.classList.toggle("on", x === b));
+    state.mode = b.dataset.m;
+    document.body.className = "mode-" + state.mode;
+    if (state.mode === "calc") { renderCalc(); renderUsage(); }
+    else pump();
+  });
+}
+
 initControls();
 initKeyModal();
 initAuthUI();
+initModes();
 updateStats();
 renderUsage();

@@ -3,17 +3,17 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>TONSPUR · Transkriptions-Studio</title>
+<title>TONSPUR · Studio</title>
 <meta name="theme-color" content="#8b5cf6">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="mask-icon" href="favicon.svg" color="#8b5cf6">
 <link rel="apple-touch-icon" href="favicon.svg">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=7">
+<link rel="preconnect" href="https://api.fontshare.com">
+<link rel="preconnect" href="https://cdn.fontshare.com" crossorigin>
+<link href="https://api.fontshare.com/v2/css?f[]=clash-display@600,700&f[]=satoshi@400,500,700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css?v=8">
 </head>
-<body>
+<body class="mode-single">
 <canvas id="bg" aria-hidden="true"></canvas>
 <div class="aurora" aria-hidden="true"><span class="o o1"></span><span class="o o2"></span><span class="o o3"></span></div>
 <div class="grain" aria-hidden="true"></div>
@@ -21,96 +21,93 @@
 <header class="bar">
   <a class="brand" href="index.html" aria-label="Zur Startseite">
     <span class="reel" aria-hidden="true"></span>
-    <div class="brand-txt"><h1>TONSPUR</h1><span class="kicker">Transkriptions-Studio</span></div>
+    <span class="brand-name">TONSPUR</span>
   </a>
   <div class="bar-right">
-    <div class="stat"><b id="statJobs">0</b><span>Jobs</span></div>
-    <div class="stat"><b id="statMin">0</b><span>Min</span></div>
-    <button id="acctBtn" class="keychip">Anmelden</button>
-    <button id="keyBtn" class="keychip">🔑 <span id="keyState">Key</span></button>
+    <button id="acctBtn" class="chip">Anmelden</button>
+    <button id="keyBtn" class="chip"><svg viewBox="0 0 24 24" class="i"><circle cx="8" cy="15" r="4"/><path d="M10.8 12.2 19 4M16 7l2 2M14 9l2 2"/></svg> <span id="keyState">Key</span></button>
   </div>
 </header>
 
-<main class="grid">
+<!-- MODE SWITCHER -->
+<div class="switch-wrap">
+  <div class="switcher" id="modeSwitch" role="tablist">
+    <button data-m="single" class="on" role="tab">
+      <svg viewBox="0 0 24 24" class="i"><path d="M13 2 3 14h7l-1 8 10-12h-7z"/></svg> Transkribieren</button>
+    <button data-m="runner" role="tab">
+      <svg viewBox="0 0 24 24" class="i"><path d="M12 2 3 7l9 5 9-5zM3 12l9 5 9-5M3 17l9 5 9-5"/></svg> Runner</button>
+    <button data-m="calc" role="tab">
+      <svg viewBox="0 0 24 24" class="i"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8M8 11h2M12 11h4M8 15h2M12 15h4"/></svg> API-Rechner</button>
+  </div>
+</div>
 
-  <!-- console -->
-  <section class="panel console">
-    <div class="panel-h"><span class="dot"></span> Eingang</div>
+<main class="wrap">
+
+  <!-- intro line per mode -->
+  <p class="mode-intro only-single">Ein Video oder eine Audiodatei — schnell und fokussiert.</p>
+  <p class="mode-intro only-runner">Mehrere Dateien gleichzeitig — parallel verarbeitet.</p>
+  <p class="mode-intro only-calc">Schätze Kosten und sieh dein heutiges Gratis-Kontingent.</p>
+
+  <!-- DROPZONE (single + runner) -->
+  <section class="hide-calc dropcard">
     <div class="eq" id="eq" aria-hidden="true"></div>
     <div class="drop" id="drop" tabindex="0" role="button" aria-label="Datei auswählen">
-      <div class="drop-icn" aria-hidden="true">
-        <svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h7l-1 8 10-12h-7z"/></svg>
-      </div>
-      <div class="big">Video oder Audio ablegen</div>
-      <div class="sml">Drag &amp; Drop · Klick · mehrere gleichzeitig · bis ~500 MB</div>
+      <div class="drop-icn" aria-hidden="true"><svg viewBox="0 0 24 24" class="i"><path d="M12 16V4M7 9l5-5 5 5M5 20h14"/></svg></div>
+      <div class="big">Datei hierher ziehen</div>
+      <div class="sml only-single">oder klicken · Video oder Audio · bis ~500 MB</div>
+      <div class="sml only-runner">oder klicken · mehrere gleichzeitig · bis ~500 MB</div>
     </div>
     <input type="file" id="file" accept="audio/*,video/*" multiple hidden>
-    <p class="hint">Die Datei bleibt lokal — nur die extrahierte Tonspur geht an Groq.</p>
   </section>
 
-  <!-- controls -->
-  <section class="panel controls">
-    <div class="panel-h"><span class="dot"></span> Einstellungen</div>
-    <div class="grp">
-      <label>Sprache</label>
-      <div class="seg" id="lang"><button data-v="de" class="on">Deutsch</button><button data-v="en">English</button></div>
+  <!-- OPTIONS (single + runner) -->
+  <section class="hide-calc optbar">
+    <div class="opt"><label>Sprache</label><div class="seg" id="lang"><button data-v="de" class="on">DE</button><button data-v="en">EN</button></div></div>
+    <div class="opt"><label>Modell</label><div class="seg" id="model"><button data-v="whisper-large-v3" class="on">large-v3</button><button data-v="whisper-large-v3-turbo">turbo</button></div></div>
+    <div class="opt"><label>Format</label><div class="chips" id="fmts"><button data-f="txt" class="on">TXT</button><button data-f="srt" class="on">SRT</button><button data-f="vtt">VTT</button><button data-f="json">JSON</button></div></div>
+    <div class="opt"><label>Veredelung</label>
+      <button id="cleanToggle" class="switch on" role="switch" aria-checked="true"><span class="knob"></span><span class="switch-txt">KI-Aufräumen</span></button>
     </div>
-    <div class="grp">
-      <label>Modell</label>
-      <div class="seg col" id="model">
-        <button data-v="whisper-large-v3" class="on">large-v3 · beste Qualität</button>
-        <button data-v="whisper-large-v3-turbo">turbo · schneller, etwas ungenauer</button>
+    <details class="adv">
+      <summary>Erweitert</summary>
+      <div class="adv-body">
+        <div class="opt only-runner"><label>Parallel</label><div class="seg" id="conc"><button data-v="1">1</button><button data-v="2" class="on">2</button><button data-v="3">3</button></div></div>
+        <div class="opt grow"><label>Glossar <span class="optx">Eigennamen / Marken</span></label><input type="text" id="glossary" placeholder="z.B. itbags, Groq, Stefan…"></div>
+      </div>
+    </details>
+  </section>
+
+  <!-- CALC (calc only) -->
+  <section class="only-calc panel calcpanel">
+    <div class="calc-head"><h2>API-Rechner</h2><p>Transparente Schätzung — Groq verlangt Cent-Beträge, der Free-Tier deckt sehr viel ab.</p></div>
+    <div class="calc-main">
+      <div class="calc-input">
+        <label for="calcMin">Videolänge</label>
+        <div class="calc-row"><input type="number" id="calcMin" min="0" step="1" value="60"><span class="calc-unit">Minuten</span></div>
+        <div class="calc-cost"><span>Geschätzte Kosten</span><b id="calcCost">—</b></div>
+        <div class="cost-sub">large-v3 + KI-Veredelung · grobe Schätzung</div>
+      </div>
+      <div class="calc-quota">
+        <label>Heutiges Kontingent</label>
+        <div class="quota-big" id="quotaVal">2000 / 2000 frei</div>
+        <div class="cost-sub" id="quotaSub">Groq Free-Tier: ~2000 Anfragen/Tag</div>
       </div>
     </div>
-    <div class="grp">
-      <label>Ausgabe</label>
-      <div class="chips" id="fmts"><button data-f="txt" class="on">Fließtext</button><button data-f="srt" class="on">SRT</button><button data-f="vtt">VTT</button><button data-f="json">JSON</button></div>
-    </div>
-    <div class="grp">
-      <label>Parallel transkribieren</label>
-      <div class="seg" id="conc"><button data-v="1">1</button><button data-v="2" class="on">2</button><button data-v="3">3</button></div>
-      <p class="sub-note" id="concNote">2 Videos gleichzeitig · mehr braucht mehr Arbeitsspeicher</p>
-    </div>
-    <div class="grp">
-      <label>Veredelung</label>
-      <button id="cleanToggle" class="switch on" role="switch" aria-checked="true">
-        <span class="knob"></span><span class="switch-txt">✨ KI-Aufräumen — Zeichensetzung &amp; Fehler</span>
-      </button>
-    </div>
-    <div class="grp">
-      <label>Glossar <span class="opt">optional</span></label>
-      <input type="text" id="glossary" placeholder="Eigennamen / Marken, z.B. itbags, Groq, Stefan…">
-    </div>
   </section>
 
-  <!-- cost / quota -->
-  <section class="panel cost" id="costPanel">
-    <div class="panel-h"><span class="dot"></span> Kontingent &amp; Kosten</div>
-    <div class="cost-row"><span>Gratis-Kontingent (heute)</span><b id="quotaVal">—</b></div>
-    <div class="cost-sub" id="quotaSub">erscheint nach dem ersten Transkript (aus Groq-Limits)</div>
-    <div class="calc">
-      <label for="calcMin">Schnell-Rechner — Videolänge</label>
-      <div class="calc-row">
-        <input type="number" id="calcMin" min="0" step="1" value="60"> <span class="calc-unit">min</span>
-      </div>
-      <div class="cost-row big-row"><span>Geschätzte Kosten</span><b id="calcCost">—</b></div>
-      <div class="cost-sub">large-v3 + KI-Veredelung · grobe Schätzung</div>
-    </div>
-  </section>
-
-  <section class="queue" id="jobs"></section>
+  <!-- JOBS (single + runner) -->
+  <section class="queue hide-calc" id="jobs"></section>
 </main>
 
 <!-- KEY MODAL -->
 <div class="modal" id="keyModal" hidden>
   <div class="modal-card panel">
     <h2>Groq API-Key</h2>
-    <p>Lokal gespeichert (localStorage) — oder dauerhaft &amp; verschlüsselt in deinem Profil, wenn du angemeldet bist.</p>
+    <p>Lokal gespeichert — oder verschlüsselt in deinem Profil, wenn du angemeldet bist.</p>
     <ol><li>Gratis-Key auf <a href="https://console.groq.com/keys" target="_blank" rel="noopener">console.groq.com/keys</a></li><li>Einfügen — fertig.</li></ol>
     <label for="keyInput" class="sr-label">Groq API-Key</label>
     <input type="password" id="keyInput" placeholder="gsk_…" autocomplete="off">
     <div class="modal-actions"><button id="keyClear" class="ghost">Löschen</button><button id="keySave">Speichern</button></div>
-    <p class="fine">Kosten: ~11 ct/Std (large-v3), ~4 ct/Std (turbo) + Cleanup-Cents — großzügiger Free-Tier.</p>
   </div>
 </div>
 
@@ -118,7 +115,7 @@
 <div class="modal" id="authModal" hidden>
   <div class="modal-card panel">
     <h2 id="authTitle">Anmelden</h2>
-    <p id="authIntro">Melde dich an, damit dein Groq-Key verschlüsselt gespeichert wird — kein erneutes Eintippen, auch auf anderen Geräten.</p>
+    <p id="authIntro">Dein Groq-Key wird verschlüsselt gespeichert — kein erneutes Eintippen, auch auf anderen Geräten.</p>
     <form id="authForm" novalidate>
       <label for="authEmail">E-Mail</label>
       <input type="email" id="authEmail" autocomplete="email" placeholder="du@beispiel.de" required>
@@ -147,7 +144,7 @@
   </div>
 </div>
 
-<script src="bg.js?v=7"></script>
-<script type="module" src="app.js?v=7"></script>
+<script src="bg.js?v=8"></script>
+<script type="module" src="app.js?v=8"></script>
 </body>
 </html>
