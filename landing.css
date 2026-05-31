@@ -183,14 +183,24 @@ h2.big{margin:20px 0 16px}
 
 /* timeline */
 .timeline{position:relative;display:grid;grid-template-columns:repeat(3,1fr);gap:24px;max-width:940px;margin:0 auto;padding-top:6px}
-.tl-line{position:absolute;top:34px;left:10%;right:10%;height:2px;background:linear-gradient(90deg,transparent,var(--accent-deep),var(--accent-2),transparent);opacity:.6}
+.tl-line{position:absolute;top:34px;left:10%;right:10%;height:2px;border-radius:2px;overflow:hidden;
+  background:linear-gradient(90deg,transparent,rgba(139,92,246,.4),rgba(167,139,250,.4),transparent)}
+.tl-line::after{content:"";position:absolute;top:0;left:0;height:100%;width:32%;border-radius:2px;
+  background:linear-gradient(90deg,transparent,var(--accent-2),#efe6ff,var(--accent-2),transparent);
+  box-shadow:0 0 12px var(--accent-2);animation:tlflow 3.6s ease-in-out infinite}
+@keyframes tlflow{0%{transform:translateX(-130%)}60%,100%{transform:translateX(340%)}}
 .tl-step{position:relative;text-align:center}
 .tl-step:nth-child(3){transform:translateY(-12px)}
 .tl-step:nth-child(4){transform:translateY(20px)}
 .tl-num{font-family:"Clash Display",sans-serif;font-weight:800;font-size:44px;line-height:1;display:block;
   background:linear-gradient(120deg,var(--accent-2),var(--accent));-webkit-background-clip:text;background-clip:text;color:transparent}
 .tl-node{display:block;width:14px;height:14px;border-radius:50%;margin:10px auto 16px;background:var(--accent);
-  box-shadow:0 0 0 5px rgba(139,92,246,.16),0 0 18px var(--accent)}
+  box-shadow:0 0 0 5px rgba(139,92,246,.16),0 0 18px var(--accent);animation:tlnode 3.6s ease-in-out infinite}
+.tl-step:nth-child(2) .tl-node{animation-delay:.1s}
+.tl-step:nth-child(3) .tl-node{animation-delay:1.3s}
+.tl-step:nth-child(4) .tl-node{animation-delay:2.5s}
+@keyframes tlnode{0%,100%{box-shadow:0 0 0 5px rgba(139,92,246,.14),0 0 14px rgba(139,92,246,.55);transform:scale(1)}
+  50%{box-shadow:0 0 0 9px rgba(139,92,246,.26),0 0 28px var(--accent-2);transform:scale(1.2)}}
 .tl-step h3{font-size:18px;margin-bottom:8px}
 .tl-step p{color:var(--mut);font-size:13.5px;margin:0 auto;max-width:260px}
 @media(max-width:760px){.timeline{grid-template-columns:1fr;gap:30px}.tl-line{display:none}.tl-step{transform:none!important}}
