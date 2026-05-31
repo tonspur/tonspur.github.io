@@ -127,7 +127,7 @@ function jobUI(job) {
     },
   };
 }
-function updateStats() { renderCalc(); }
+function updateStats() { const q = $("#qcount"); if (q) q.textContent = queue.length; renderCalc(); }
 function addFile(file) {
   const job = { id: ++jobSeq, file, lang: state.lang, formats: new Set(state.formats), clean: state.clean, glossary: state.glossary, status: "queued", segs: [], duration: 0 };
   job.ui = jobUI(job);

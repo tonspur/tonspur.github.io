@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://api.fontshare.com">
 <link rel="preconnect" href="https://cdn.fontshare.com" crossorigin>
 <link href="https://api.fontshare.com/v2/css?f[]=clash-display@600,700&f[]=satoshi@400,500,700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=8">
+<link rel="stylesheet" href="styles.css?v=9">
 </head>
 <body class="mode-single">
 <canvas id="bg" aria-hidden="true"></canvas>
@@ -20,7 +20,6 @@
 
 <header class="bar">
   <a class="brand" href="index.html" aria-label="Zur Startseite">
-    <span class="reel" aria-hidden="true"></span>
     <span class="brand-name">TONSPUR</span>
   </a>
   <div class="bar-right">
@@ -96,6 +95,7 @@
   </section>
 
   <!-- JOBS (single + runner) -->
+  <div class="queue-head only-runner"><span>Warteschlange</span><span class="qcount" id="qcount">0</span></div>
   <section class="queue hide-calc" id="jobs"></section>
 </main>
 
@@ -144,7 +144,7 @@
   </div>
 </div>
 
-<script src="bg.js?v=8"></script>
-<script type="module" src="app.js?v=8"></script>
+<script src="bg.js?v=9"></script>
+<script type="module" src="app.js?v=9"></script>
 </body>
 </html>
