@@ -12,10 +12,11 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="landing.css?v=5">
+<link rel="stylesheet" href="landing.css?v=7">
 </head>
 <body>
 <canvas id="bg" aria-hidden="true"></canvas>
+<div class="aurora" aria-hidden="true"><span class="o o1"></span><span class="o o2"></span><span class="o o3"></span></div>
 <div class="grain" aria-hidden="true"></div>
 
 <!-- NAV -->
@@ -25,11 +26,11 @@
     <span class="logo-txt">TONSPUR</span>
   </a>
   <nav class="nav-links">
+    <a href="#how">Workflow</a>
     <a href="#features">Features</a>
-    <a href="#how">So funktioniert's</a>
-    <a href="#preise">Preise</a>
+    <a href="#stats">Warum</a>
   </nav>
-  <a class="btn btn-sm" href="app.html">App öffnen</a>
+  <a class="btn btn-sm" href="app.html">Studio öffnen</a>
 </header>
 
 <main id="top">
@@ -37,90 +38,119 @@
   <!-- HERO -->
   <section class="hero">
     <div class="hero-txt reveal">
-      <div class="pill">⌁ Lokal · Privat · Kostenlos</div>
+      <div class="kicker">Transkriptions-Studio</div>
       <h1>Verwandle jedes Video<br>in <span class="grad">perfekten Text</span>.</h1>
       <p class="lead">Die Tonspur wird lokal in deinem Browser extrahiert, von Whisper&nbsp;large-v3
         transkribiert und per KI veredelt — saubere Zeichensetzung, keine erfundenen Wörter.
-        Auch 2-Stunden-Videos.</p>
+        Auch zwei Stunden lange Aufnahmen.</p>
       <div class="cta-row">
         <a class="btn btn-lg" href="app.html">Jetzt transkribieren</a>
-        <a class="btn-ghost" href="#how">Wie es funktioniert →</a>
+        <a class="btn-ghost" href="#how">So funktioniert's
+          <svg viewBox="0 0 24 24" class="i"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
       </div>
-      <div class="trust">Keine Datei verlässt deinen Rechner ganz · dein Groq-Key bleibt im Browser</div>
+      <div class="trust">
+        <svg viewBox="0 0 24 24" class="i"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        Keine Datei verlässt deinen Rechner — dein Groq-Key bleibt im Browser
+      </div>
     </div>
 
-    <!-- app mockup -->
+    <!-- product mockup -->
     <div class="mock reveal" aria-hidden="true">
-      <div class="mock-chrome"><span></span><span></span><span></span><i>tonspur — transkriptions-studio</i></div>
-      <div class="mock-body">
-        <div class="mock-eq" id="mockEq"></div>
-        <div class="mock-drop">⌁ &nbsp;Video oder Audio ablegen</div>
-        <div class="mock-job">
-          <div class="mock-ring"></div>
-          <div class="mock-jt">
-            <b>interview_final.mp4</b>
-            <span>large-v3 · 42 min · ✨ veredelt</span>
+      <div class="mock-glow"></div>
+      <div class="mock-win">
+        <div class="mock-chrome"><span></span><span></span><span></span><i>tonspur · studio</i></div>
+        <div class="mock-body">
+          <div class="mock-eq" id="mockEq"></div>
+          <div class="mock-drop">
+            <svg viewBox="0 0 24 24" class="i"><path d="M13 2 3 14h7l-1 8 10-12h-7z"/></svg>
+            Video oder Audio ablegen
           </div>
-          <div class="mock-badge">fertig</div>
+          <div class="mock-job">
+            <div class="mock-ring"></div>
+            <div class="mock-jt"><b>interview_final.mp4</b><span>large-v3 · 42 min · veredelt</span></div>
+            <div class="mock-badge">fertig</div>
+          </div>
+          <div class="mock-line"></div><div class="mock-line s"></div><div class="mock-line m"></div>
         </div>
-        <div class="mock-line"></div><div class="mock-line s"></div><div class="mock-line m"></div>
       </div>
     </div>
   </section>
 
   <!-- VALUE STRIP -->
   <section class="strip">
-    <div class="vcard reveal"><div class="vi">🔒</div><h3>Lokal &amp; privat</h3><p>Das Video bleibt auf deinem Gerät. Nur die komprimierte Tonspur geht an die KI.</p></div>
-    <div class="vcard reveal"><div class="vi">∅</div><h3>Kostenlos</h3><p>Kein Abo. Du nutzt deinen eigenen Groq-Key mit großzügigem Free-Tier — sonst Cent-Beträge.</p></div>
-    <div class="vcard reveal"><div class="vi">✦</div><h3>Beste Qualität</h3><p>Whisper large-v3 plus KI-Veredelung für Zeichensetzung, Groß-/Kleinschreibung und Korrekturen.</p></div>
+    <div class="vcard reveal">
+      <span class="vi"><svg viewBox="0 0 24 24" class="i"><rect x="4" y="11" width="16" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span>
+      <h3>Lokal &amp; privat</h3><p>Das Video bleibt auf deinem Gerät. Nur die komprimierte Tonspur geht an die KI — sonst nichts.</p>
+    </div>
+    <div class="vcard reveal">
+      <span class="vi"><svg viewBox="0 0 24 24" class="i"><circle cx="12" cy="12" r="9"/><path d="M15 9.5a3.5 3 0 0 0-3-1.5c-1.7 0-3 .9-3 2s1.3 2 3 2 3 1 3 2-1.3 2-3 2a3.5 3 0 0 1-3-1.5M12 6v1.5M12 16.5V18"/></svg></span>
+      <h3>Kostenlos</h3><p>Kein Abo. Du nutzt deinen eigenen Groq-Key mit großzügigem Free-Tier — danach Cent-Beträge.</p>
+    </div>
+    <div class="vcard reveal">
+      <span class="vi"><svg viewBox="0 0 24 24" class="i"><path d="M12 3l2 5 5 .5-3.8 3.3L16.5 17 12 14.2 7.5 17l1.3-5.2L5 8.5 10 8z"/></svg></span>
+      <h3>Beste Qualität</h3><p>Whisper large-v3 plus KI-Veredelung für Zeichensetzung, Groß-/Kleinschreibung und Korrekturen.</p>
+    </div>
   </section>
 
   <!-- HOW -->
   <section class="section" id="how">
     <div class="section-h reveal">
+      <div class="kicker">Workflow</div>
       <h2>In drei Schritten zum Transkript.</h2>
       <p>Datei rein, kurz warten, fertigen Text und Untertitel mitnehmen.</p>
     </div>
     <div class="steps">
-      <div class="step reveal"><span class="num">1</span><h3>Datei ablegen</h3><p>Video oder Audio per Drag &amp; Drop — bis ~500 MB, mehrere gleichzeitig parallel.</p></div>
-      <div class="step reveal"><span class="num">2</span><h3>KI transkribiert &amp; veredelt</h3><p>large-v3 erkennt die Sprache (DE/EN), die KI bügelt Zeichensetzung und Fehler glatt.</p></div>
-      <div class="step reveal"><span class="num">3</span><h3>Text &amp; Untertitel raus</h3><p>Lade Fließtext, SRT, VTT oder JSON herunter — mit exakten Zeitstempeln.</p></div>
+      <div class="step reveal"><span class="num">01</span><h3>Datei ablegen</h3><p>Video oder Audio per Drag &amp; Drop — bis ~500 MB, mehrere parallel.</p></div>
+      <div class="step reveal"><span class="num">02</span><h3>KI transkribiert &amp; veredelt</h3><p>large-v3 erkennt die Sprache (DE/EN), die KI bügelt Zeichensetzung und Fehler glatt.</p></div>
+      <div class="step reveal"><span class="num">03</span><h3>Text &amp; Untertitel raus</h3><p>Fließtext, SRT, VTT oder JSON herunterladen — mit exakten Zeitstempeln.</p></div>
     </div>
   </section>
 
   <!-- FEATURES -->
   <section class="section" id="features">
     <div class="section-h reveal">
+      <div class="kicker">Im Studio</div>
       <h2>Alles dabei, nichts im Weg.</h2>
-      <p>Ein fokussiertes Studio statt überladener Software.</p>
+      <p>Ein fokussiertes Werkzeug statt überladener Software.</p>
     </div>
     <div class="fgrid">
-      <div class="fcard reveal"><h3>large-v3</h3><p>Das genaueste Whisper-Modell — feste Sprachwahl statt Raten. Für schnelle Passagen optimierte, höhere Audioqualität.</p></div>
-      <div class="fcard reveal"><h3>✨ KI-Veredelung</h3><p>Ein zweiter Pass korrigiert Satzzeichen, Verkürzungen und offensichtliche Fehler — ohne Wörter zu erfinden.</p></div>
-      <div class="fcard reveal"><h3>Alle Formate</h3><p>Fließtext zum Lesen, SRT &amp; VTT fürs Video-Editing, JSON mit Segmenten und Zeitstempeln.</p></div>
-      <div class="fcard reveal"><h3>2 Std+ &amp; parallel</h3><p>Lange Aufnahmen werden automatisch in Stücke zerlegt. Mehrere Dateien laufen parallel — plus Profil-Login &amp; Kostenrechner.</p></div>
+      <div class="fcard reveal"><span class="fi"><svg viewBox="0 0 24 24" class="i"><rect x="5" y="5" width="14" height="14" rx="2"/><path d="M9 9h6v6H9zM2 9h3M2 15h3M19 9h3M19 15h3M9 2v3M15 2v3M9 19v3M15 19v3"/></svg></span><h3>large-v3</h3><p>Das genaueste Whisper-Modell — feste Sprachwahl statt Raten, optimierte Audioqualität für schnelle Passagen.</p></div>
+      <div class="fcard reveal"><span class="fi"><svg viewBox="0 0 24 24" class="i"><path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6zM18 14l.8 2.2L21 17l-2.2.8L18 20l-.8-2.2L15 17l2.2-.8z"/></svg></span><h3>KI-Veredelung</h3><p>Ein zweiter Pass korrigiert Satzzeichen, Verkürzungen und offensichtliche Fehler — ohne Wörter zu erfinden.</p></div>
+      <div class="fcard reveal"><span class="fi"><svg viewBox="0 0 24 24" class="i"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></svg></span><h3>Alle Formate</h3><p>Fließtext zum Lesen, SRT &amp; VTT fürs Video-Editing, JSON mit Segmenten und Zeitstempeln.</p></div>
+      <div class="fcard reveal"><span class="fi"><svg viewBox="0 0 24 24" class="i"><path d="M12 2 3 7l9 5 9-5zM3 12l9 5 9-5M3 17l9 5 9-5"/></svg></span><h3>Parallel &amp; lang</h3><p>Lange Aufnahmen werden automatisch zerlegt. Mehrere Dateien laufen parallel — plus Profil-Login &amp; Kostenrechner.</p></div>
     </div>
   </section>
 
-  <!-- PRICING / CTA -->
-  <section class="section center" id="preise">
+  <!-- STATS (count-up) -->
+  <section class="section stats" id="stats">
+    <div class="section-h reveal">
+      <div class="kicker">Warum TONSPUR</div>
+      <h2>Schlank, lokal, ehrlich.</h2>
+    </div>
+    <div class="stat-grid reveal">
+      <div class="statc"><div class="num" data-count="100" data-suffix="%">0</div><div class="lab">lokal verarbeitet</div></div>
+      <div class="statc"><div class="num" data-count="0" data-suffix=" €">0</div><div class="lab">Abo &amp; Fixkosten</div></div>
+      <div class="statc"><div class="num" data-count="4">0</div><div class="lab">Export-Formate</div></div>
+      <div class="statc"><div class="num" data-count="2">0</div><div class="lab">Sprachen · DE / EN</div></div>
+    </div>
+  </section>
+
+  <!-- FINAL CTA -->
+  <section class="section center cta-final">
     <div class="reveal">
-      <div class="pill">Free without limits</div>
+      <div class="kicker">Bereit?</div>
       <h2 class="big">Es ist Zeit, Klartext zu reden.</h2>
-      <p class="lead center">Kein Konto, kein Download, kein Abo. Öffne das Studio und leg los.</p>
-      <a class="btn btn-lg" href="app.html">App öffnen</a>
+      <p class="lead center">Kein Konto-Zwang, kein Download, kein Abo. Öffne das Studio und leg los.</p>
+      <a class="btn btn-lg" href="app.html">Studio öffnen</a>
     </div>
   </section>
 
   <footer class="foot">
     <div class="foot-top">
-      <div class="foot-brand">
-        <span class="reel" aria-hidden="true"></span>
-        <span class="logo-txt">TONSPUR</span>
-      </div>
+      <div class="foot-brand"><span class="reel" aria-hidden="true"></span><span class="logo-txt">TONSPUR</span></div>
       <div class="foot-cols">
-        <div><b>Produkt</b><a href="app.html">App öffnen</a><a href="#features">Features</a><a href="#how">So funktioniert's</a></div>
-        <div><b>Technik</b><span>Whisper large-v3 · Groq</span><span>ffmpeg.wasm (lokal)</span><span>Statisch · kein Backend</span></div>
+        <div><b>Produkt</b><a href="app.html">Studio öffnen</a><a href="#features">Features</a><a href="#how">Workflow</a></div>
+        <div><b>Technik</b><span>Whisper large-v3 · Groq</span><span>ffmpeg.wasm — lokal</span><span>Statisch · kein Backend</span></div>
         <div><b>Hinweis</b><span>Eigener Groq-Key nötig</span><a href="https://console.groq.com/keys" target="_blank" rel="noopener">Gratis-Key holen</a></div>
       </div>
     </div>
@@ -129,7 +159,7 @@
 
 </main>
 
-<script src="bg.js?v=6"></script>
-<script src="landing.js?v=5"></script>
+<script src="bg.js?v=7"></script>
+<script src="landing.js?v=7"></script>
 </body>
 </html>

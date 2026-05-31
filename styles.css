@@ -30,6 +30,14 @@ body{
     radial-gradient(1100px 700px at 78% -8%, rgba(139,92,246,.14), transparent 60%),
     radial-gradient(900px 600px at -8% 100%, rgba(124,92,255,.10), transparent 55%),
     var(--ink);}
+.aurora{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden;filter:blur(64px)}
+.aurora .o{position:absolute;border-radius:50%;mix-blend-mode:screen}
+.aurora .o1{width:60vw;height:60vw;left:-12vw;top:-22vw;background:radial-gradient(circle,#6d4ed6,transparent 65%);opacity:.42;animation:drift1 34s ease-in-out infinite}
+.aurora .o2{width:48vw;height:48vw;right:-15vw;top:8vh;background:radial-gradient(circle,#7c3aed,transparent 65%);opacity:.34;animation:drift2 42s ease-in-out infinite}
+.aurora .o3{width:52vw;height:52vw;left:18vw;bottom:-26vw;background:radial-gradient(circle,#4c2da8,transparent 65%);opacity:.38;animation:drift3 38s ease-in-out infinite}
+@keyframes drift1{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(8vw,6vh) scale(1.15)}}
+@keyframes drift2{0%,100%{transform:translate(0,0) scale(1.05)}50%{transform:translate(-7vw,9vh) scale(.92)}}
+@keyframes drift3{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(5vw,-7vh) scale(1.12)}}
 .grain{position:fixed;inset:0;z-index:1;pointer-events:none;opacity:.05;
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   mix-blend-mode:overlay;}

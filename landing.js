@@ -1,9 +1,10 @@
-// Landing interactions: nav blur on scroll, staggered reveals, mock equalizer.
+// Landing interactions: nav blur, staggered reveals, mock equalizer, count-up stats.
 (() => {
-  // gentle background pulse for the veins on the landing
-  window.__pulse = 0.28;
+  window.__pulse = 0.24; // calm veins on the landing
 
-  // nav blur
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  // nav blur on scroll
   const nav = document.getElementById("nav");
   const onScroll = () => nav.classList.toggle("scrolled", scrollY > 24);
   addEventListener("scroll", onScroll, { passive: true });
@@ -18,28 +19,45 @@
     eq.appendChild(s);
   }
 
-  // staggered scroll reveals
-  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const items = [...document.querySelectorAll(".reveal")];
-  if (reduce || !("IntersectionObserver" in window)) {
-    items.forEach((el) => el.classList.add("in"));
-    return;
+  // count-up
+  function countUp(el) {
+    const target = parseFloat(el.dataset.count || "0");
+    const suffix = el.dataset.suffix || "";
+    const prefix = el.dataset.prefix || "";
+    if (reduce || target === 0) { el.textContent = prefix + target + suffix; return; }
+    const dur = 1400, t0 = performance.now();
+    const tick = (now) => {
+      const p = Math.min(1, (now - t0) / dur);
+      const e = 1 - Math.pow(1 - p, 3); // ease-out cubic
+      el.textContent = prefix + Math.round(target * e) + suffix;
+      if (p < 1) requestAnimationFrame(tick);
+      else el.textContent = prefix + target + suffix;
+    };
+    requestAnimationFrame(tick);
   }
-  // Above-the-fold elements reveal immediately (never hide hero content).
-  items.forEach((el) => { if (el.getBoundingClientRect().top < innerHeight * 0.92) el.classList.add("in"); });
+
+  const items = [...document.querySelectorAll(".reveal")];
+  const fire = (el) => {
+    el.classList.add("in");
+    el.querySelectorAll?.(".num[data-count]").forEach(countUp);
+  };
+
+  if (reduce || !("IntersectionObserver" in window)) { items.forEach(fire); return; }
+
+  // above-the-fold reveals immediately
+  items.forEach((el) => { if (el.getBoundingClientRect().top < innerHeight * 0.92) fire(el); });
 
   const io = new IntersectionObserver((entries) => {
     entries.forEach((e) => {
       if (e.isIntersecting) {
         const sibs = [...e.target.parentElement.children].filter((c) => c.classList.contains("reveal"));
         e.target.style.transitionDelay = (sibs.indexOf(e.target) % 4) * 80 + "ms";
-        e.target.classList.add("in");
+        fire(e.target);
         io.unobserve(e.target);
       }
     });
-  }, { threshold: 0.12 });
+  }, { threshold: 0.18 });
   items.forEach((el) => { if (!el.classList.contains("in")) io.observe(el); });
 
-  // Safety net: never leave content hidden (e.g. throttled tabs).
-  setTimeout(() => items.forEach((el) => el.classList.add("in")), 1500);
+  setTimeout(() => items.forEach((el) => { if (!el.classList.contains("in")) fire(el); }), 2000);
 })();
