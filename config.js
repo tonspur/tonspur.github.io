@@ -3,8 +3,8 @@
 // Filled in after the one-time Supabase project setup; empty = cloud login disabled
 // (the app then runs in local-key mode via localStorage).
 export const SUPABASE = {
-  url: "",        // e.g. "https://xxxx.supabase.co"
-  anon: "",       // e.g. "eyJhbGciOi..."
+  url: "https://mmcblaxzrxqxxaojnxzi.supabase.co",
+  anon: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1tY2JsYXh6cnhxeHhhb2pueHppIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAyNDg2NzAsImV4cCI6MjA5NTgyNDY3MH0.JZSgH4g6_aesY7W_aa9GXqWWrF9tGWbyKswcEUHaQg0",
 };
 
 // Groq Speech-to-Text pricing (USD per hour of audio) — estimates, verify on groq.com.
