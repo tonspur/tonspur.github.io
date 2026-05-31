@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TONSPUR · Transkriptions-Studio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css?v=4">
+</head>
+<body>
+<canvas id="bg" aria-hidden="true"></canvas>
+<div class="grain" aria-hidden="true"></div>
+
+<!-- TOP BAR -->
+<header class="bar">
+  <div class="brand">
+    <span class="reel" aria-hidden="true"></span>
+    <div class="brand-txt">
+      <h1>TONSPUR</h1>
+      <span class="kicker">Transkriptions-Studio</span>
+    </div>
+  </div>
+  <div class="bar-right">
+    <div class="stat"><b id="statJobs">0</b><span>Jobs</span></div>
+    <div class="stat"><b id="statMin">0</b><span>Min</span></div>
+    <button id="keyBtn" class="keychip">🔑 <span id="keyState">Key</span></button>
+  </div>
+</header>
+
+<main class="grid">
+
+  <!-- LEFT: console -->
+  <section class="panel console">
+    <div class="panel-h"><span class="dot"></span> Eingang</div>
+    <div class="eq" id="eq" aria-hidden="true"></div>
+    <div class="drop" id="drop" tabindex="0" role="button" aria-label="Datei auswählen">
+      <div class="drop-icn">⌁</div>
+      <div class="big">Video oder Audio ablegen</div>
+      <div class="sml">Drag &amp; Drop · Klick · mp4 · mov · mp3 · m4a · wav — bis ~500 MB</div>
+    </div>
+    <input type="file" id="file" accept="audio/*,video/*" multiple hidden>
+    <p class="hint">Die Datei bleibt lokal — nur die extrahierte Tonspur geht an Groq.</p>
+  </section>
+
+  <!-- RIGHT: controls -->
+  <section class="panel controls">
+    <div class="panel-h"><span class="dot"></span> Einstellungen</div>
+
+    <div class="grp">
+      <label>Sprache</label>
+      <div class="seg" id="lang">
+        <button data-v="de" class="on">Deutsch</button>
+        <button data-v="en">English</button>
+      </div>
+    </div>
+
+    <div class="grp">
+      <label>Modell</label>
+      <div class="seg col" id="model">
+        <button data-v="whisper-large-v3" class="on">large-v3 · beste Qualität</button>
+        <button data-v="whisper-large-v3-turbo">turbo · schneller, etwas ungenauer</button>
+      </div>
+    </div>
+
+    <div class="grp">
+      <label>Ausgabe</label>
+      <div class="chips" id="fmts">
+        <button data-f="txt" class="on">Fließtext</button>
+        <button data-f="srt" class="on">SRT</button>
+        <button data-f="vtt">VTT</button>
+        <button data-f="json">JSON</button>
+      </div>
+    </div>
+
+    <div class="grp">
+      <label>Veredelung</label>
+      <button id="cleanToggle" class="switch on" role="switch" aria-checked="true">
+        <span class="knob"></span>
+        <span class="switch-txt">✨ KI-Aufräumen — Zeichensetzung & Fehler</span>
+      </button>
+    </div>
+
+    <div class="grp">
+      <label>Glossar <span class="opt">optional</span></label>
+      <input type="text" id="glossary" placeholder="Eigennamen / Marken, z.B. itbags, Groq, Stefan…">
+    </div>
+  </section>
+
+  <!-- QUEUE -->
+  <section class="queue" id="jobs"></section>
+</main>
+
+<!-- KEY MODAL -->
+<div class="modal" id="keyModal" hidden>
+  <div class="modal-card panel">
+    <h2>Groq API-Key</h2>
+    <p>Bleibt <b>nur in diesem Browser</b> (localStorage) — nie hochgeladen, nie auf GitHub.</p>
+    <ol>
+      <li>Gratis-Key auf <a href="https://console.groq.com/keys" target="_blank" rel="noopener">console.groq.com/keys</a></li>
+      <li>Hier einfügen — fertig.</li>
+    </ol>
+    <input type="password" id="keyInput" placeholder="gsk_…" autocomplete="off">
+    <div class="modal-actions">
+      <button id="keyClear" class="ghost">Löschen</button>
+      <button id="keySave">Speichern</button>
+    </div>
+    <p class="fine">Kosten: ~11 ct/Std (large-v3), ~4 ct/Std (turbo) + Cleanup-Cents — großzügiger Free-Tier.</p>
+  </div>
+</div>
+
+<script src="bg.js?v=4"></script>
+<script type="module" src="app.js?v=4"></script>
+</body>
+</html>

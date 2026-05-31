@@ -1,0 +1,4 @@
+jobs/
+__test*
+.DS_Store
+*.part
