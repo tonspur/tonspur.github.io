@@ -1,8 +1,8 @@
 // Account + zero-knowledge Groq-key storage.
 // Supabase = email/password auth + a `profiles` row holding only CIPHERTEXT of the key.
 // The key is encrypted/decrypted client-side (crypto.js). Server never sees plaintext.
-import { SUPABASE } from "./config.js?v=15";
-import { deriveKey, encryptString, decryptString, randomSaltB64, cacheKey, loadCachedKey, clearCachedKeys } from "./crypto.js?v=15";
+import { SUPABASE } from "./config.js?v=17";
+import { deriveKey, encryptString, decryptString, randomSaltB64, cacheKey, loadCachedKey, clearCachedKeys } from "./crypto.js?v=17";
 
 let client = null;
 let clientLoading = null;
@@ -22,7 +22,7 @@ async function loadCreateClient() {
     catch (e) { lastErr = e; }
   }
   console.warn("Supabase load failed:", lastErr);
-  throw new Error("Login-Dienst lädt nicht (Netzwerk/CDN). Internet prüfen und „Anmelden" erneut antippen.");
+  throw new Error("Login-Dienst laedt nicht (Netzwerk/CDN). Internet pruefen und erneut auf Anmelden tippen.");
 }
 
 async function getClient() {

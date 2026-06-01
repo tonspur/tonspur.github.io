@@ -1,7 +1,7 @@
 // Cost estimation + local daily usage tracking.
 // (Groq returns x-ratelimit-* headers but does NOT expose them via CORS, so a browser
 //  cannot read live remaining quota. We therefore track usage locally per day.)
-import { PRICING, CLEANUP_PRICE, USD_EUR } from "./config.js?v=15";
+import { PRICING, CLEANUP_PRICE, USD_EUR } from "./config.js?v=17";
 
 // Groq free-tier whisper-large-v3 limits (reference): 2000 requests/day, 7200 audio-seconds/hour.
 // The HOURLY audio cap is what actually throttles big batches — not the daily request count.
