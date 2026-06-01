@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://api.fontshare.com">
 <link rel="preconnect" href="https://cdn.fontshare.com" crossorigin>
 <link href="https://api.fontshare.com/v2/css?f[]=clash-display@600,700&f[]=satoshi@400,500,700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=11">
+<link rel="stylesheet" href="styles.css?v=12">
 </head>
 <body class="mode-single gated">
 <canvas id="bg" aria-hidden="true"></canvas>
@@ -21,17 +21,9 @@
 <!-- AUTH GATE (full screen, required to use the studio) -->
 <section id="authGate">
   <div class="gate-card">
-    <svg id="gateCrystal" class="crystal" viewBox="0 0 100 124" width="86" height="106" aria-hidden="true">
-      <defs>
-        <linearGradient id="cgL" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#d6c9ff"/><stop offset="1" stop-color="#8b5cf6"/></linearGradient>
-        <linearGradient id="cgR" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7c3aed"/><stop offset="1" stop-color="#4c1d95"/></linearGradient>
-        <linearGradient id="cgT" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#efe6ff"/><stop offset="1" stop-color="#a78bfa"/></linearGradient>
-      </defs>
-      <polygon points="50,6 24,56 47,120" fill="url(#cgL)"/>
-      <polygon points="50,6 80,50 47,120" fill="url(#cgR)"/>
-      <polygon points="50,6 24,56 40,40" fill="url(#cgT)" opacity="0.9"/>
-      <polygon points="50,6 80,50 62,38" fill="#b9a4f7" opacity="0.85"/>
-    </svg>
+    <div id="gateMark" class="gate-mark" aria-hidden="true">
+      <span></span><span></span><span></span><span></span><span></span>
+    </div>
     <h1 id="gateTitle">Im Studio anmelden</h1>
     <p class="gate-sub" id="gateSub">Melde dich an, um den Transcriber zu nutzen. Dein Groq-Key wird verschlüsselt gespeichert.</p>
     <form id="gateForm" novalidate>
@@ -152,7 +144,7 @@
   </div>
 </div>
 
-<script src="bg.js?v=11"></script>
-<script type="module" src="app.js?v=11"></script>
+<script src="bg.js?v=12"></script>
+<script type="module" src="app.js?v=12"></script>
 </body>
 </html>

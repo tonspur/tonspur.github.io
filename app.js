@@ -207,7 +207,11 @@ function initControls() {
 function initAuthUI() {
   const acct = $("#acctBtn");
   const unlockModal = $("#unlockModal");
-  const crystal = $("#gateCrystal");
+  const mark = $("#gateMark");
+  const bars = mark ? [...mark.querySelectorAll("span")] : [];
+  const rest = [0.45, 0.7, 1, 0.7, 0.45];
+  bars.forEach((b, i) => b.style.setProperty("--h", rest[i] ?? 0.6));
+  let settleT = 0;
   let mode = "login";
 
   const renderAcct = () => {
@@ -227,9 +231,17 @@ function initAuthUI() {
     $("#gErr").textContent = "";
   };
 
-  // crystal reacts to every keystroke
+  // TONSPUR mark reacts to EVERY keystroke (Web Animations API → always replays)
   const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const pop = () => { if (reduce) return; crystal.classList.remove("pop"); void crystal.offsetWidth; crystal.classList.add("pop"); };
+  const pop = () => {
+    if (reduce || !mark) return;
+    mark.animate(
+      [{ transform: "translateY(0) scale(1)" }, { transform: "translateY(-7px) scale(1.07)" }, { transform: "translateY(0) scale(1)" }],
+      { duration: 260, easing: "cubic-bezier(.2,.8,.2,1)" });
+    bars.forEach((b) => b.style.setProperty("--h", (0.28 + Math.random() * 0.72).toFixed(2)));
+    clearTimeout(settleT);
+    settleT = setTimeout(() => bars.forEach((b, i) => b.style.setProperty("--h", rest[i] ?? 0.6)), 520);
+  };
   $("#gEmail").addEventListener("keydown", pop);
   $("#gPass").addEventListener("keydown", pop);
 

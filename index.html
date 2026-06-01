@@ -10,7 +10,7 @@
 <link rel="preconnect" href="https://api.fontshare.com">
 <link rel="preconnect" href="https://cdn.fontshare.com" crossorigin>
 <link href="https://api.fontshare.com/v2/css?f[]=clash-display@600,700&f[]=satoshi@400,500,700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="landing.css?v=10">
+<link rel="stylesheet" href="landing.css?v=11">
 </head>
 <body>
 <canvas id="bg" aria-hidden="true"></canvas>
@@ -89,7 +89,14 @@
       <h2>In drei Schritten zum Transkript.</h2>
     </div>
     <div class="timeline reveal">
-      <span class="tl-line"></span>
+      <svg class="tl-wave" viewBox="0 0 1200 72" preserveAspectRatio="none" aria-hidden="true">
+        <defs><linearGradient id="wv" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stop-color="#7c3aed" stop-opacity="0"/>
+          <stop offset=".5" stop-color="#a78bfa" stop-opacity=".95"/>
+          <stop offset="1" stop-color="#7c3aed" stop-opacity="0"/></linearGradient></defs>
+        <g class="wv-g wv-g2"><path d="M-400,40 q100,20 200,0 t200,0 t200,0 t200,0 t200,0 t200,0 t200,0 t200,0 t200,0 t200,0 t200,0 t200,0" fill="none" stroke="url(#wv)" stroke-width="1.6" stroke-opacity=".45"/></g>
+        <g class="wv-g"><path d="M-400,36 q100,-26 200,0 t200,0 t200,0 t200,0 t200,0 t200,0 t200,0 t200,0 t200,0 t200,0 t200,0 t200,0" fill="none" stroke="url(#wv)" stroke-width="2.5" stroke-linecap="round"/></g>
+      </svg>
       <div class="tl-step">
         <span class="tl-num">01</span><span class="tl-node"></span>
         <h3>Datei ablegen</h3><p>Video oder Audio per Drag &amp; Drop — bis ~500 MB, mehrere parallel.</p>
@@ -170,7 +177,7 @@
 
 </main>
 
-<script src="bg.js?v=9"></script>
-<script src="landing.js?v=9"></script>
+<script src="bg.js?v=11"></script>
+<script src="landing.js?v=11"></script>
 </body>
 </html>
