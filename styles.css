@@ -430,6 +430,8 @@ body.gated .bar,body.gated .switch-wrap,body.gated main.wrap{display:none!import
 .calc-row input:focus,.budget-cap input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(139,92,246,.16)}
 #budgetBox{display:none;margin-top:20px;border-top:1px solid var(--line);padding-top:18px}
 body.paid #budgetBox{display:block}
+body.dg .only-groq{display:none}      /* Deepgram: hide Groq-only model + free/paid toggle */
+body.dg #budgetBox{display:none}      /* Deepgram runs on its free credit → no €-guard */
 .budget-head{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap}
 .budget-cap{display:flex;align-items:center;gap:8px;flex:none}
 .budget-cap input{width:84px}

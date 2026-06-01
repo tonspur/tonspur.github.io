@@ -11,6 +11,7 @@ export const SUPABASE = {
 export const PRICING = {
   "whisper-large-v3": 0.111,
   "whisper-large-v3-turbo": 0.04,
+  "nova-3": 0.31,            // Deepgram Nova-3 pre-recorded, ~$0.0052/min multilingual (≈ $0.31/h)
 };
 // Cleanup LLM (USD per 1M tokens) — llama-3.3-70b-versatile, rough.
 export const CLEANUP_PRICE = { in: 0.59, out: 0.79 };

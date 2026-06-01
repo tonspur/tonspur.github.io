@@ -1,8 +1,8 @@
 // TONSPUR app wiring: state, transcribe pool, history, rendering, cost panel, auth UI.
-import { FFmpegSlot, groqTranscribe, cleanupAll, retry429, mergeSegments, buildTxt, buildSrt, buildVtt, buildJson, tc } from "./engine.js?v=19";
-import { estimate, estimateTime, fmtMoney, fmtDur, recordRun, getUsage, usdToEur, getSpendUsd, addSpend, resetSpend } from "./cost.js?v=19";
-import * as auth from "./auth.js?v=19";
-import * as history from "./history.js?v=19";
+import { FFmpegSlot, groqTranscribe, deepgramTranscribe, cleanupAll, retry429, mergeSegments, buildTxt, buildSrt, buildVtt, buildJson, tc } from "./engine.js?v=20";
+import { estimate, estimateTime, fmtMoney, fmtDur, recordRun, getUsage, usdToEur, getSpendUsd, addSpend, resetSpend } from "./cost.js?v=20";
+import * as auth from "./auth.js?v=20";
+import * as history from "./history.js?v=20";
 
 const $ = (s) => document.querySelector(s);
 const lsGet = (k) => { try { return localStorage.getItem(k) || ""; } catch { return ""; } };
@@ -23,11 +23,15 @@ const state = {
   concurrency: prefs.concurrency || 1,
   billing: prefs.billing === "paid" ? "paid" : "free",   // free (rate-limited, 0 €) | paid (full speed, costs)
   budgetEur: prefs.budgetEur > 0 ? prefs.budgetEur : 8,  // local budget guard for paid mode
-  key: lsGet("groq_key"), keyStored: true,
+  provider: prefs.provider === "deepgram" ? "deepgram" : "groq",
+  keys: { groq: lsGet("groq_key"), deepgram: lsGet("deepgram_key") },
+  keyStored: true,
   account: null,          // { email } when signed in
 };
-const savePrefs = () => lsSet(PREFS_KEY, JSON.stringify({ lang: state.lang, model: state.model, formats: [...state.formats], clean: state.clean, concurrency: state.concurrency, billing: state.billing, budgetEur: state.budgetEur }));
+state.key = state.keys[state.provider];   // active-provider key (mirror, used everywhere)
+const savePrefs = () => lsSet(PREFS_KEY, JSON.stringify({ lang: state.lang, model: state.model, formats: [...state.formats], clean: state.clean, concurrency: state.concurrency, billing: state.billing, budgetEur: state.budgetEur, provider: state.provider }));
 const effConc = () => state.concurrency;
+const effModel = () => state.provider === "deepgram" ? "nova-3" : state.model;   // model id for cost/meta
 
 const queue = [];
 let jobSeq = 0, active = 0;
@@ -51,7 +55,7 @@ async function runJob(job) {
   const slot = acquireSlot();
   job.ui.startTimer();
   try {
-    if (!state.key) throw new Error("Kein Groq-Key. Oben rechts auf 🔑 (oder anmelden).");
+    if (!state.keys[job.provider]) throw new Error(`Kein ${job.provider === "deepgram" ? "Deepgram" : "Groq"}-Key. Oben rechts auf 🔑.`);
     job.ui.setState("run");
     job.ui.phase("ffmpeg lädt …", 0.03);
 
@@ -59,9 +63,13 @@ async function runJob(job) {
       job.ui.phase(`Tonspur extrahieren … ${Math.round(p * 100)}%`, 0.05 + 0.25 * p));
     job.duration = duration;
 
-    // Paid-mode budget guard: block BEFORE any Groq call (no charge yet) if it would exceed the cap.
-    if (state.billing === "paid") {
-      const estUsd = estimate(duration, state.model, job.clean).total;
+    const provider = job.provider, model = effModel();
+    const canClean = job.clean && !!state.keys.groq;   // KI-cleanup needs a Groq key (uses Groq LLM)
+
+    // Groq paid-mode budget guard: block BEFORE any paid call (no charge yet) if it would exceed the cap.
+    // (Deepgram runs on its 200 $ free credit → no €-guard needed.)
+    if (provider === "groq" && state.billing === "paid") {
+      const estUsd = estimate(duration, model, canClean).total;
       if (usdToEur(getSpendUsd() + estUsd) > state.budgetEur + 1e-9) {
         const e = new Error(`Budget-Limit (${state.budgetEur} €) würde überschritten — Job nicht gestartet. Limit im Rechner erhöhen oder Datei kürzen.`);
         e.budget = true; throw e;
@@ -71,9 +79,9 @@ async function runJob(job) {
     // Persist a "running" record now → survives a refresh/crash (shows up as interrupted with partial text).
     await putHist(job, [], null, "running", 0.3);
 
-    // Transient Groq failures (429 / 5xx / timeout): count down + retry, don't fail.
+    // Transient failures (429 / 5xx / timeout): count down + retry, don't fail.
     const waitFn = (label) => async (sec, attempt, reason) => {
-      const why = reason === "server" ? "Groq überlastet / Aussetzer" : "wartet auf Gratis-Kontingent";
+      const why = reason === "server" ? "Server-Aussetzer" : "wartet auf Gratis-Kontingent";
       for (let left = sec; left > 0; left--) { job.ui.phase(`${label} · ${why} — neuer Versuch in ${left}s …`); await sleep(1000); }
     };
 
@@ -83,9 +91,11 @@ async function runJob(job) {
       const label = chunks.length > 1 ? `Transkribieren … Stück ${i + 1}/${chunks.length}` : "Transkribieren …";
       const prog = 0.35 + 0.5 * (i / chunks.length);
       job.ui.phase(label, prog);
-      const prompt = (job.glossary + " " + prevTail).trim();   // glossary + tail of prev chunk → continuity
+      const prompt = (job.glossary + " " + prevTail).trim();   // glossary + tail of prev chunk → continuity (Groq only)
       const { segments } = await retry429(
-        () => groqTranscribe({ blob: chunks[i].blob, key: state.key, model: state.model, lang: job.lang, prompt }),
+        () => provider === "deepgram"
+          ? deepgramTranscribe({ blob: chunks[i].blob, key: state.keys.deepgram, lang: job.lang })
+          : groqTranscribe({ blob: chunks[i].blob, key: state.keys.groq, model, lang: job.lang, prompt }),
         waitFn(label));
       requests++;
       for (const s of segments) segs.push({ start: s.start + chunks[i].offset, end: s.end + chunks[i].offset, text: s.text });
@@ -97,20 +107,21 @@ async function runJob(job) {
     job.segs = merged;
 
     job.cleanText = null;
-    if (job.clean) {
+    if (canClean) {
       try {
         const raw = merged.map((s) => s.text).join(" ");
         job.ui.phase("KI-Aufräumen …", 0.9);
-        job.cleanText = await cleanupAll(raw, job.lang, state.key,
+        job.cleanText = await cleanupAll(raw, job.lang, state.keys.groq,
           (p) => job.ui.phase(`KI-Aufräumen … ${Math.round(p * 100)}%`, 0.9 + 0.09 * p),
           waitFn("KI-Aufräumen"));
         requests += Math.max(1, Math.ceil(raw.length / 6000));
       } catch { job.cleanText = null; }
     }
-    // record local usage (Groq doesn't expose live quota to the browser)
-    const jobUsd = estimate(job.duration, state.model, !!job.cleanText).total;
+    job.model = model;
+    // record local usage
+    const jobUsd = estimate(job.duration, model, !!job.cleanText).total;
     recordRun({ requests, seconds: job.duration, usd: jobUsd });
-    if (state.billing === "paid") addSpend(jobUsd);   // cumulative spend for the budget meter
+    if (provider === "groq" && state.billing === "paid") addSpend(jobUsd);   // cumulative spend for the budget meter
     renderUsage();
 
     job.ui.phase("Fertig", 1);
@@ -144,6 +155,7 @@ async function runJob(job) {
 }
 
 const truncName = (n) => !n ? "Datei" : (n.length > 36 ? n.slice(0, 33) + "…" : n);
+const modelLabel = (m) => !m ? "—" : (m.includes("nova") ? "Nova-3" : m.includes("turbo") ? "turbo" : "large-v3");
 // One history record per job (stable id) — written repeatedly as the job progresses.
 async function putHist(job, segs, cleanText, status, progress, finalize) {
   job.histId = job.histId || ("t" + Date.now() + "_" + job.id);
@@ -151,7 +163,7 @@ async function putHist(job, segs, cleanText, status, progress, finalize) {
   job._segs = segs; job._prog = progress;   // remembered for the error path
   const rec = {
     id: job.histId, name: job.file?.name || "transkript", dateMs: job.dateMs,
-    lang: job.lang, model: state.model, duration: job.duration || 0,
+    lang: job.lang, model: job.model || effModel(), duration: job.duration || 0,
     segCount: segs.length, segs, cleanText: cleanText || null, status, progress,
   };
   try { await (finalize ? history.saveTranscript(rec) : history.putTranscript(rec)); }
@@ -198,9 +210,9 @@ function jobUI(job) {
     },
     error(msg) { q(".phase").style.display = "none"; q(".timing").style.display = "none"; q(".ring-wrap").style.display = "none"; q(".body").innerHTML = `<div class="errbox">${esc(msg)}</div>`; },
     renderResult(j) {
-      const rec = { name: j.file?.name || "transkript", lang: j.lang, model: state.model, duration: j.duration, segs: j.segs, cleanText: j.cleanText };
+      const rec = { name: j.file?.name || "transkript", lang: j.lang, model: j.model || effModel(), duration: j.duration, segs: j.segs, cleanText: j.cleanText };
       const { dls, preview } = buildOutputs(rec);
-      q(".phase").textContent = `${rec.model} · ${Math.round(j.duration / 60)} min · ${j.segs.length} Segmente${j.cleanText ? " · ✨ veredelt" : ""}`;
+      q(".phase").textContent = `${modelLabel(rec.model)} · ${Math.round(j.duration / 60)} min · ${j.segs.length} Segmente${j.cleanText ? " · ✨ veredelt" : ""}`;
       q(".body").innerHTML = `<div class="dls">${dls}<button class="read-btn" type="button">📖 Lesen</button></div><div class="preview">${esc(preview.slice(0, 1200))}${preview.length > 1200 ? " …" : ""}</div>`;
       q(".read-btn").onclick = () => openReader(rec);
     },
@@ -227,7 +239,7 @@ function updateStats() {
   document.body.classList.toggle("has-many", queue.length > 1);
 }
 function addFile(file) {
-  const job = { id: ++jobSeq, file, lang: state.lang, clean: state.clean, glossary: state.glossary, status: "queued", segs: [], duration: 0 };
+  const job = { id: ++jobSeq, file, lang: state.lang, clean: state.clean, glossary: state.glossary, provider: state.provider, model: effModel(), status: "queued", segs: [], duration: 0 };
   job.ui = jobUI(job);
   queue.push(job);
   updateStats(); pump();
@@ -250,10 +262,14 @@ function renderCalc() {
   const min = Math.max(0, parseFloat($("#calcMin").value) || 0);
   const sec = min * 60;
   const paid = state.billing === "paid";
-  const c = estimate(sec, state.model, state.clean);
-  $("#calcCost").textContent = paid ? (min ? fmtMoney(c.total) : "—") : "0 €";
+  const willClean = state.clean && !!state.keys.groq;
+  const c = estimate(sec, effModel(), willClean);
+  const dg = state.provider === "deepgram";
+  $("#calcCost").textContent = (paid || dg) ? (min ? fmtMoney(c.total) : "—") : "0 €";
   const sub = $("#calcCostSub");
-  if (sub) sub.textContent = paid ? "Bezahlt-Modus · echte Schätzung (large-v3 + Veredelung)" : "Gratis-Modus — du zahlst nichts (dafür rate-limitiert).";
+  if (sub) sub.textContent = dg
+    ? "Deepgram Nova-3 · 200 $ Gratis-Guthaben deckt ~400 Std → für dich faktisch 0 €."
+    : (paid ? "Bezahlt-Modus · echte Schätzung (large-v3 + Veredelung)" : "Gratis-Modus — du zahlst nichts (dafür rate-limitiert).");
   const dur = $("#calcDur"); if (dur) dur.textContent = min ? `ca. ${fmtDur(estimateTime(sec, state.clean).lowSec)}–${fmtDur(estimateTime(sec, state.clean).highSec)}` : "—";
   renderBudget();
 }
@@ -271,20 +287,35 @@ function refreshKeyChip() {
   const chip = $("#keyBtn");
   chip.classList.toggle("ok", !!state.key);
   chip.classList.toggle("no", !state.key);
-  $("#keyState").textContent = state.key ? (state.keyStored ? "Key aktiv" : "Key (Sitzung)") : "Key fehlt";
+  const prov = state.provider === "deepgram" ? "Deepgram" : "Groq";
+  $("#keyState").textContent = state.key ? `${prov}-Key aktiv` : `${prov}-Key fehlt`;
 }
-async function setKey(k, { persistLocal = true, syncProfile = false } = {}) {
-  state.key = (k || "").trim();
-  if (persistLocal) state.keyStored = state.key ? lsSet("groq_key", state.key) : (lsDel("groq_key"), true);
-  if (syncProfile && state.account) { try { await auth.saveKey(state.key); } catch (e) { console.warn("profile save failed", e); } }
+// Set a specific provider's key. (Groq key also syncs to the encrypted profile.)
+async function setProviderKey(provider, k, { persistLocal = true, syncProfile = false } = {}) {
+  const v = (k || "").trim();
+  state.keys[provider] = v;
+  if (provider === state.provider) state.key = v;
+  if (persistLocal) { v ? lsSet(provider + "_key", v) : lsDel(provider + "_key"); }
+  state.keyStored = true;
+  if (syncProfile && state.account && provider === "groq") { try { await auth.saveKey(v); } catch (e) { console.warn("profile save failed", e); } }
   refreshKeyChip(); pump();
 }
+const setKey = (k, opts) => setProviderKey(state.provider, k, opts);   // active provider
 
 let openKeyModal = () => {};
 function initKeyModal() {
   const modal = $("#keyModal");
   const close = () => { modal.hidden = true; modal.style.display = "none"; };
-  const open = () => { $("#keyInput").value = state.key; modal.hidden = false; modal.style.display = "flex"; };
+  const open = () => {
+    const dg = state.provider === "deepgram";
+    $("#keyTitle").textContent = dg ? "Deepgram API-Key" : "Groq API-Key";
+    $("#keyHelp").innerHTML = dg
+      ? 'Gratis-Key (200 $ Guthaben, keine Karte nötig) auf <a href="https://console.deepgram.com" target="_blank" rel="noopener">console.deepgram.com</a> → <b>API Keys</b>. Wird lokal auf diesem Gerät gespeichert.'
+      : 'Gratis-Key auf <a href="https://console.groq.com/keys" target="_blank" rel="noopener">console.groq.com/keys</a> — oder verschlüsselt im Profil, wenn du angemeldet bist.';
+    $("#keyInput").placeholder = dg ? "Deepgram-Token …" : "gsk_…";
+    $("#keyInput").value = state.key || "";
+    modal.hidden = false; modal.style.display = "flex";
+  };
   openKeyModal = open;
   $("#keyBtn").onclick = open;
   $("#keySave").onclick = async () => { const v = $("#keyInput").value; close(); await setKey(v, { persistLocal: true, syncProfile: true }); };
@@ -305,8 +336,16 @@ function initControls() {
   seg("#model", (v) => { state.model = v; renderCalc(); });
   seg("#conc", (v) => { state.concurrency = +v; pump(); });
   seg("#billing", (v) => { state.billing = v; document.body.classList.toggle("paid", v === "paid"); renderCalc(); });
-  applySeg("#lang", state.lang); applySeg("#model", state.model); applySeg("#conc", state.concurrency); applySeg("#billing", state.billing);
+  seg("#provider", (v) => {
+    state.provider = v; state.key = state.keys[v];
+    document.body.classList.toggle("dg", v === "deepgram");
+    refreshKeyChip(); renderCalc();
+    if (!state.keys[v]) openKeyModal();   // prompt for the new provider's key if missing
+  });
+  applySeg("#lang", state.lang); applySeg("#model", state.model); applySeg("#conc", state.concurrency);
+  applySeg("#billing", state.billing); applySeg("#provider", state.provider);
   document.body.classList.toggle("paid", state.billing === "paid");
+  document.body.classList.toggle("dg", state.provider === "deepgram");
 
   const budgetInput = $("#budgetEur");
   if (budgetInput) { budgetInput.value = state.budgetEur; budgetInput.addEventListener("input", () => { state.budgetEur = Math.max(0, parseFloat(budgetInput.value) || 0); renderBudget(); savePrefs(); }); }
@@ -339,8 +378,8 @@ function confirmFiles(files) {
   pendingFiles = files;
   $("#startTitle").textContent = files.length > 1 ? `${files.length} Dateien transkribieren?` : "Transkription starten?";
   $("#startList").innerHTML = files.map((f) => `<li><span class="sf-nm">${esc(f.name)}</span><span class="sf-sz">${fmtSize(f.size)}</span></li>`).join("");
-  const modelTxt = state.model.includes("turbo") ? "turbo" : "large-v3";
-  const parts = [`Sprache ${state.lang.toUpperCase()}`, `Modell ${modelTxt}`, `Veredelung ${state.clean ? "ein" : "aus"}`, "alle Formate"];
+  const provTxt = state.provider === "deepgram" ? "Deepgram" : "Groq";
+  const parts = [`${provTxt} · ${modelLabel(effModel())}`, `Sprache ${state.lang.toUpperCase()}`, `Veredelung ${state.clean && state.keys.groq ? "ein" : "aus"}`, "alle Formate"];
   if (files.length > 1) parts.push(`Parallel ${state.concurrency}`);
   $("#startSummary").textContent = parts.join("  ·  ");
   const m = $("#startModal"); m.hidden = false; m.style.display = "flex";
@@ -418,7 +457,7 @@ function initAuthUI() {
       }
       const res = await auth.unlock(pass);
       state.account = { email }; renderAcct(); ungate();
-      if (res.groqKey) await setKey(res.groqKey, { persistLocal: false });
+      if (res.groqKey) await setProviderKey("groq", res.groqKey, { persistLocal: false });
       else if (!state.key) openKeyModal();   // need a Groq key (badPassword or first time)
     } catch (ex) { err.textContent = ex.message || "Anmeldung fehlgeschlagen."; }
     finally { btn.disabled = false; btn.textContent = lbl; }
@@ -429,7 +468,7 @@ function initAuthUI() {
   $("#unlockCancel").onclick = () => { closeUnlock(); openKeyModal(); };
   $("#unlockSubmit").onclick = async () => {
     const pass = $("#unlockPass").value; const err = $("#unlockErr"); err.textContent = "";
-    try { const res = await auth.unlock(pass); if (res.groqKey) { await setKey(res.groqKey, { persistLocal: false }); closeUnlock(); } else if (res.badPassword) err.textContent = "Falsches Passwort."; else { closeUnlock(); openKeyModal(); } }
+    try { const res = await auth.unlock(pass); if (res.groqKey) { await setProviderKey("groq", res.groqKey, { persistLocal: false }); closeUnlock(); } else if (res.badPassword) err.textContent = "Falsches Passwort."; else { closeUnlock(); openKeyModal(); } }
     catch (ex) { err.textContent = ex.message; }
   };
 
@@ -444,7 +483,7 @@ function initAuthUI() {
     auth.loadFromCache().then((r) => {
       if (r.signedIn) {
         state.account = { email: r.email }; renderAcct(); ungate();
-        if (r.groqKey) setKey(r.groqKey, { persistLocal: false });
+        if (r.groqKey) setProviderKey("groq", r.groqKey, { persistLocal: false });
         else if (r.needsPassword) { unlockModal.hidden = false; unlockModal.style.display = "flex"; }
         else openKeyModal();
       } else showGate();
@@ -486,7 +525,7 @@ async function renderHistory() {
     <article class="hcard" data-id="${esc(it.id)}">
       <div class="hc-main">
         <div class="hc-nm">${esc(it.name)} ${badge(it.status)}</div>
-        <div class="hc-meta">${fmtDate(it.dateMs)} · ${Math.round((it.duration || 0) / 60)} min · ${it.lang.toUpperCase()} · ${it.model.includes("turbo") ? "turbo" : "large-v3"} · ${it.segCount || 0} Segmente${it.cleanText ? " · ✨" : ""}${it.status === "incomplete" ? " · Teil-Transkript" : ""}</div>
+        <div class="hc-meta">${fmtDate(it.dateMs)} · ${Math.round((it.duration || 0) / 60)} min · ${it.lang.toUpperCase()} · ${modelLabel(it.model)} · ${it.segCount || 0} Segmente${it.cleanText ? " · ✨" : ""}${it.status === "incomplete" ? " · Teil-Transkript" : ""}</div>
       </div>
       <div class="hc-actions">
         <button class="hc-open" type="button"${it.segCount ? "" : " disabled"}>Öffnen</button>
@@ -528,7 +567,7 @@ function openReader(rec) {
   readerRec = rec;
   const { dls } = buildOutputs(rec);
   $("#readTitle").textContent = rec.name;
-  $("#readMeta").textContent = `${Math.round(rec.duration / 60)} min · ${rec.lang.toUpperCase()} · ${rec.model.includes("turbo") ? "turbo" : "large-v3"} · ${rec.segs.length} Segmente${rec.cleanText ? " · ✨ veredelt" : ""}`;
+  $("#readMeta").textContent = `${Math.round(rec.duration / 60)} min · ${rec.lang.toUpperCase()} · ${modelLabel(rec.model)} · ${rec.segs.length} Segmente${rec.cleanText ? " · ✨ veredelt" : ""}`;
   $("#readDls").innerHTML = dls;
   if ($("#readSearch")) $("#readSearch").value = "";
   if ($("#readTs")) $("#readTs").checked = false;

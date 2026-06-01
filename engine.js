@@ -152,6 +152,43 @@ export async function groqTranscribe({ blob, key, model, lang, prompt }) {
   return { segments, headers: res.headers };
 }
 
+const DG_TX = "https://api.deepgram.com/v1/listen";
+
+async function dgError(res) {
+  let raw = `Deepgram ${res.status}`;
+  try { const j = await res.json(); raw = j.err_msg || j.message || j.reason || raw; } catch {}
+  let msg = raw;
+  if (res.status === 401) msg = "Ungültiger Deepgram-Key.";
+  else if (res.status === 402 || res.status === 403) msg = "Deepgram: Guthaben/Zugriff geprüft — Konto/Key checken.";
+  else if (res.status >= 500) msg = `Deepgram-Server-Aussetzer (${res.status}).`;
+  const e = new Error(msg); e.status = res.status; return e;
+}
+
+// Pure parser (unit-testable): Deepgram response → [{start,end,text}] from utterances (fallback: transcript).
+export function parseDeepgram(data) {
+  const utts = data?.results?.utterances || [];
+  if (utts.length) {
+    return utts.map((u) => ({ start: u.start, end: u.end, text: (u.transcript || "").trim() })).filter((s) => s.text);
+  }
+  const alt = data?.results?.channels?.[0]?.alternatives?.[0];
+  const t = (alt?.transcript || "").trim();
+  if (!t) return [];
+  const end = alt?.words?.length ? alt.words[alt.words.length - 1].end : 0;
+  return [{ start: 0, end, text: t }];
+}
+
+export async function deepgramTranscribe({ blob, key, lang }) {
+  const p = new URLSearchParams({ model: "nova-3", smart_format: "true", punctuate: "true", utterances: "true" });
+  if (lang) p.set("language", lang);
+  const res = await fetchT(`${DG_TX}?${p.toString()}`, {
+    method: "POST",
+    headers: { Authorization: `Token ${key}`, "Content-Type": blob.type || "audio/flac" },
+    body: blob,
+  });
+  if (!res.ok) throw await dgError(res);
+  return { segments: parseDeepgram(await res.json()) };
+}
+
 async function groqCleanup(text, lang, key) {
   const sys = lang === "de"
     ? "Du bist Transkript-Korrektor. Korrigiere NUR Zeichensetzung, Groß-/Kleinschreibung, Abstände, Apostrophe und offensichtliche Versprecher/Erkennungsfehler. Füge sinnvolle Absätze ein. Ändere, ergänze oder kürze KEINE Inhalte, fasse NICHTS zusammen, paraphrasiere NICHT. Behalte jedes gesprochene Wort. Gib nur den korrigierten Text zurück."

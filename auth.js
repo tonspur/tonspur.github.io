@@ -1,8 +1,8 @@
 // Account + zero-knowledge Groq-key storage.
 // Supabase = email/password auth + a `profiles` row holding only CIPHERTEXT of the key.
 // The key is encrypted/decrypted client-side (crypto.js). Server never sees plaintext.
-import { SUPABASE } from "./config.js?v=19";
-import { deriveKey, encryptString, decryptString, randomSaltB64, cacheKey, loadCachedKey, clearCachedKeys } from "./crypto.js?v=19";
+import { SUPABASE } from "./config.js?v=20";
+import { deriveKey, encryptString, decryptString, randomSaltB64, cacheKey, loadCachedKey, clearCachedKeys } from "./crypto.js?v=20";
 
 let client = null;
 let clientLoading = null;
