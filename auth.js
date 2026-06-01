@@ -1,23 +1,39 @@
 // Account + zero-knowledge Groq-key storage.
 // Supabase = email/password auth + a `profiles` row holding only CIPHERTEXT of the key.
 // The key is encrypted/decrypted client-side (crypto.js). Server never sees plaintext.
-import { SUPABASE } from "./config.js";
-import { deriveKey, encryptString, decryptString, randomSaltB64, cacheKey, loadCachedKey, clearCachedKeys } from "./crypto.js";
+import { SUPABASE } from "./config.js?v=15";
+import { deriveKey, encryptString, decryptString, randomSaltB64, cacheKey, loadCachedKey, clearCachedKeys } from "./crypto.js?v=15";
 
 let client = null;
 let clientLoading = null;
 
 export function authEnabled() { return !!(SUPABASE.url && SUPABASE.anon); }
 
+// Load the Supabase client. jsDelivr's "+esm" is ONE self-contained bundle (robust);
+// esm.sh splits into ~6 sub-imports and dies if any one hiccups → used only as fallback.
+const SUPABASE_CDNS = [
+  "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm",
+  "https://esm.sh/@supabase/supabase-js@2",
+];
+async function loadCreateClient() {
+  let lastErr;
+  for (const url of SUPABASE_CDNS) {
+    try { const m = await import(/* @vite-ignore */ url); if (m && m.createClient) return m.createClient; lastErr = new Error("kein createClient: " + url); }
+    catch (e) { lastErr = e; }
+  }
+  console.warn("Supabase load failed:", lastErr);
+  throw new Error("Login-Dienst lädt nicht (Netzwerk/CDN). Internet prüfen und „Anmelden" erneut antippen.");
+}
+
 async function getClient() {
   if (!authEnabled()) return null;
   if (client) return client;
   if (!clientLoading) {
     clientLoading = (async () => {
-      const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2");
+      const createClient = await loadCreateClient();
       client = createClient(SUPABASE.url, SUPABASE.anon, { auth: { persistSession: true, autoRefreshToken: true } });
       return client;
-    })();
+    })().catch((e) => { clientLoading = null; throw e; });   // reset so the next attempt retries
   }
   return clientLoading;
 }

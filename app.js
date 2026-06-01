@@ -1,8 +1,8 @@
 // TONSPUR app wiring: state, transcribe pool, history, rendering, cost panel, auth UI.
-import { FFmpegSlot, groqTranscribe, cleanupAll, retry429, mergeSegments, buildTxt, buildSrt, buildVtt, buildJson, tc } from "./engine.js";
-import { estimate, estimateTime, fmtMoney, fmtDur, recordRun, getUsage } from "./cost.js";
-import * as auth from "./auth.js";
-import * as history from "./history.js";
+import { FFmpegSlot, groqTranscribe, cleanupAll, retry429, mergeSegments, buildTxt, buildSrt, buildVtt, buildJson, tc } from "./engine.js?v=15";
+import { estimate, estimateTime, fmtMoney, fmtDur, recordRun, getUsage } from "./cost.js?v=15";
+import * as auth from "./auth.js?v=15";
+import * as history from "./history.js?v=15";
 
 const $ = (s) => document.querySelector(s);
 const lsGet = (k) => { try { return localStorage.getItem(k) || ""; } catch { return ""; } };
