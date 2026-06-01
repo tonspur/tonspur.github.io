@@ -96,6 +96,7 @@ async function groqError(res) {
   if (res.status === 401) msg = "Ungültiger Groq-Key.";
   else if (res.status === 429) msg = "Groq-Limit erreicht — kurz warten.";
   else if (res.status === 413) msg = "Audio-Stück zu groß für Groq.";
+  else if (res.status >= 500) msg = `Groq-Server-Aussetzer (${res.status}).`;
   const e = new Error(msg); e.status = res.status;
   // "Please try again in 1m23.4s" / "...in 9.6s" → seconds
   const m = raw.match(/try again in (?:(\d+)m)?\s*([\d.]+)s/i);
@@ -103,15 +104,20 @@ async function groqError(res) {
   return e;
 }
 
-// Retry a Groq call on 429 (rate limit). `onWait(seconds, attempt)` must update the UI
-// AND resolve after that many seconds (owns the countdown + the actual sleep).
+// Retry transient Groq failures. `onWait(seconds, attempt, reason)` updates the UI AND
+// resolves after that many seconds (owns the countdown + the actual sleep).
+// Retries 429 (rate limit) and 5xx (502/503/504/500 — transient server/gateway hiccups).
 export async function retry429(fn, onWait, max = 20) {
   for (let attempt = 0; ; attempt++) {
     try { return await fn(); }
     catch (e) {
-      if (e.status !== 429 || attempt >= max) throw e;
-      const wait = Math.min(60, e.retryAfter || 8 * Math.min(2 ** attempt, 8));
-      if (onWait) await onWait(Math.ceil(wait), attempt + 1);
+      const isLimit = e.status === 429;
+      const isServer = e.status >= 500 && e.status < 600;
+      if ((!isLimit && !isServer) || attempt >= max) throw e;
+      // limit: honor server-suggested wait; server hiccup: quick exponential backoff
+      const base = isLimit ? (e.retryAfter || 8 * Math.min(2 ** attempt, 8)) : 3 * Math.min(2 ** attempt, 8);
+      const wait = Math.min(60, base);
+      if (onWait) await onWait(Math.ceil(wait), attempt + 1, isLimit ? "limit" : "server");
     }
   }
 }

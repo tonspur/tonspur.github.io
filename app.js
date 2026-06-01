@@ -1,5 +1,5 @@
 // TONSPUR app wiring: state, transcribe pool, history, rendering, cost panel, auth UI.
-import { FFmpegSlot, groqTranscribe, cleanupAll, retry429, mergeSegments, buildTxt, buildSrt, buildVtt, buildJson, tc } from "./engine.js?v=15";
+import { FFmpegSlot, groqTranscribe, cleanupAll, retry429, mergeSegments, buildTxt, buildSrt, buildVtt, buildJson, tc } from "./engine.js?v=16";
 import { estimate, estimateTime, fmtMoney, fmtDur, recordRun, getUsage } from "./cost.js?v=15";
 import * as auth from "./auth.js?v=15";
 import * as history from "./history.js?v=15";
@@ -57,9 +57,10 @@ async function runJob(job) {
       job.ui.phase(`Tonspur extrahieren … ${Math.round(p * 100)}%`, 0.05 + 0.25 * p));
     job.duration = duration;
 
-    // On 429 (Groq rate limit) wait out the countdown and retry — don't fail the job.
-    const waitFn = (label) => async (sec) => {
-      for (let left = sec; left > 0; left--) { job.ui.phase(`${label} · wartet auf Gratis-Kontingent — weiter in ${left}s …`); await sleep(1000); }
+    // Transient Groq failures (429 limit / 5xx server hiccup): count down + retry, don't fail.
+    const waitFn = (label) => async (sec, attempt, reason) => {
+      const why = reason === "server" ? "Groq-Server überlastet" : "wartet auf Gratis-Kontingent";
+      for (let left = sec; left > 0; left--) { job.ui.phase(`${label} · ${why} — neuer Versuch in ${left}s …`); await sleep(1000); }
     };
 
     let requests = 0, prevTail = "";
@@ -107,7 +108,9 @@ async function runJob(job) {
     job.ui.setState("err");
     const msg = e.status === 429
       ? "Groq Free-Tier Stundenlimit (7.200 s Audio/h) erreicht — später erneut oder weniger / kürzere Dateien gleichzeitig."
-      : (e.message || String(e));
+      : (e.status >= 500
+        ? `Groq-Server antwortet mehrfach mit einem Fehler (${e.status}) — meist nur ein kurzer Aussetzer. Bitte in 1–2 Minuten erneut versuchen.`
+        : (e.message || String(e)));
     job.ui.error(msg);
     toast("Transkription fehlgeschlagen", "err");
   } finally {
