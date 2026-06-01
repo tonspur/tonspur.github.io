@@ -10,6 +10,18 @@ const SEGMENT_SEC = 480;            // chunk length (s) — FLAC 16k mono ≈ 10
 const CHUNK_OVERLAP = 5;            // s of overlap so boundary words aren't cut mid-word
 const MAX_SINGLE_BYTES = 22 * 1024 * 1024;
 const CLEAN_BATCH = 6000;
+const REQ_TIMEOUT = 180000;   // 3 min per Groq request — abort hangs so a job never sticks forever
+
+// fetch with a hard timeout. On timeout throws a *retryable* error (so retry429 retries it).
+async function fetchT(url, opts, ms = REQ_TIMEOUT) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), ms);
+  try { return await fetch(url, { ...opts, signal: ctrl.signal }); }
+  catch (e) {
+    const err = new Error("Groq antwortet nicht (Zeitüberschreitung) — neuer Versuch.");
+    err.status = 408; err.retryable = true; throw err;
+  } finally { clearTimeout(t); }
+}
 
 // One ffmpeg.wasm instance — the pool creates several of these for parallel extraction.
 export class FFmpegSlot {
@@ -112,7 +124,7 @@ export async function retry429(fn, onWait, max = 20) {
     try { return await fn(); }
     catch (e) {
       const isLimit = e.status === 429;
-      const isServer = e.status >= 500 && e.status < 600;
+      const isServer = (e.status >= 500 && e.status < 600) || e.retryable;
       if ((!isLimit && !isServer) || attempt >= max) throw e;
       // limit: honor server-suggested wait; server hiccup: quick exponential backoff
       const base = isLimit ? (e.retryAfter || 8 * Math.min(2 ** attempt, 8)) : 3 * Math.min(2 ** attempt, 8);
@@ -131,7 +143,7 @@ export async function groqTranscribe({ blob, key, model, lang, prompt }) {
   fd.append("temperature", "0");
   // Whisper conditions on `prompt` (glossary + tail of previous chunk) → continuity + consistent spelling.
   if (prompt) fd.append("prompt", prompt.slice(-900));
-  const res = await fetch(GROQ_TX, { method: "POST", headers: { Authorization: `Bearer ${key}` }, body: fd });
+  const res = await fetchT(GROQ_TX, { method: "POST", headers: { Authorization: `Bearer ${key}` }, body: fd });
   if (!res.ok) throw await groqError(res);
   const data = await res.json();
   const segments = (data.segments || [])
@@ -144,7 +156,7 @@ async function groqCleanup(text, lang, key) {
   const sys = lang === "de"
     ? "Du bist Transkript-Korrektor. Korrigiere NUR Zeichensetzung, Groß-/Kleinschreibung, Abstände, Apostrophe und offensichtliche Versprecher/Erkennungsfehler. Füge sinnvolle Absätze ein. Ändere, ergänze oder kürze KEINE Inhalte, fasse NICHTS zusammen, paraphrasiere NICHT. Behalte jedes gesprochene Wort. Gib nur den korrigierten Text zurück."
     : "You are a transcript proofreader. Fix ONLY punctuation, capitalization, spacing, apostrophes/contractions and obvious speech-recognition errors. Add sensible paragraph breaks. Do NOT add, remove, summarize or paraphrase content. Keep every spoken word. Return only the corrected text.";
-  const res = await fetch(GROQ_CHAT, {
+  const res = await fetchT(GROQ_CHAT, {
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
     body: JSON.stringify({ model: CLEAN_MODEL, temperature: 0, messages: [{ role: "system", content: sys }, { role: "user", content: text }] }),

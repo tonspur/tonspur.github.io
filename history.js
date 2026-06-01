@@ -50,3 +50,14 @@ export async function listTranscripts() {
 export const getTranscript = (id) => tx("readonly", (s) => req2promise(s.get(id)));
 export const deleteTranscript = (id) => tx("readwrite", (s) => s.delete(id));
 export const clearAll = () => tx("readwrite", (s) => s.clear());
+
+// Incremental write during a running job (no prune — cheap, called per chunk).
+export const putTranscript = (rec) => tx("readwrite", (s) => s.put(rec));
+
+// On boot: any record still flagged "running" is a leftover from a refresh/crash → mark interrupted.
+export async function markInterrupted() {
+  const all = await listTranscripts();
+  const stale = all.filter((r) => r.status === "running");
+  if (stale.length) await tx("readwrite", (s) => { stale.forEach((r) => s.put({ ...r, status: "incomplete" })); });
+  return stale.length;
+}

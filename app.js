@@ -1,8 +1,8 @@
 // TONSPUR app wiring: state, transcribe pool, history, rendering, cost panel, auth UI.
-import { FFmpegSlot, groqTranscribe, cleanupAll, retry429, mergeSegments, buildTxt, buildSrt, buildVtt, buildJson, tc } from "./engine.js?v=17";
-import { estimate, estimateTime, fmtMoney, fmtDur, recordRun, getUsage } from "./cost.js?v=17";
-import * as auth from "./auth.js?v=17";
-import * as history from "./history.js?v=17";
+import { FFmpegSlot, groqTranscribe, cleanupAll, retry429, mergeSegments, buildTxt, buildSrt, buildVtt, buildJson, tc } from "./engine.js?v=18";
+import { estimate, estimateTime, fmtMoney, fmtDur, recordRun, getUsage } from "./cost.js?v=18";
+import * as auth from "./auth.js?v=18";
+import * as history from "./history.js?v=18";
 
 const $ = (s) => document.querySelector(s);
 const lsGet = (k) => { try { return localStorage.getItem(k) || ""; } catch { return ""; } };
@@ -56,10 +56,12 @@ async function runJob(job) {
     const { duration, chunks } = await slot.extract(job.file, (p) =>
       job.ui.phase(`Tonspur extrahieren … ${Math.round(p * 100)}%`, 0.05 + 0.25 * p));
     job.duration = duration;
+    // Persist a "running" record now → survives a refresh/crash (shows up as interrupted with partial text).
+    await putHist(job, [], null, "running", 0.3);
 
-    // Transient Groq failures (429 limit / 5xx server hiccup): count down + retry, don't fail.
+    // Transient Groq failures (429 / 5xx / timeout): count down + retry, don't fail.
     const waitFn = (label) => async (sec, attempt, reason) => {
-      const why = reason === "server" ? "Groq-Server überlastet" : "wartet auf Gratis-Kontingent";
+      const why = reason === "server" ? "Groq überlastet / Aussetzer" : "wartet auf Gratis-Kontingent";
       for (let left = sec; left > 0; left--) { job.ui.phase(`${label} · ${why} — neuer Versuch in ${left}s …`); await sleep(1000); }
     };
 
@@ -67,7 +69,8 @@ async function runJob(job) {
     const segs = [];
     for (let i = 0; i < chunks.length; i++) {
       const label = chunks.length > 1 ? `Transkribieren … Stück ${i + 1}/${chunks.length}` : "Transkribieren …";
-      job.ui.phase(label, 0.35 + 0.5 * (i / chunks.length));
+      const prog = 0.35 + 0.5 * (i / chunks.length);
+      job.ui.phase(label, prog);
       const prompt = (job.glossary + " " + prevTail).trim();   // glossary + tail of prev chunk → continuity
       const { segments } = await retry429(
         () => groqTranscribe({ blob: chunks[i].blob, key: state.key, model: state.model, lang: job.lang, prompt }),
@@ -75,6 +78,7 @@ async function runJob(job) {
       requests++;
       for (const s of segments) segs.push({ start: s.start + chunks[i].offset, end: s.end + chunks[i].offset, text: s.text });
       if (segments.length) prevTail = segments.map((s) => s.text).join(" ").slice(-200);
+      await putHist(job, mergeSegments(segs), null, "running", prog);   // checkpoint after each chunk
     }
     const merged = mergeSegments(segs);   // stitch timeline + drop overlap duplicates
     if (!merged.length) throw new Error("Keine Sprache erkannt.");
@@ -99,7 +103,7 @@ async function runJob(job) {
     job.ui.stopTimer();
     job.ui.setState("done");
     job.ui.renderResult(job);
-    saveToHistory(job);
+    await putHist(job, merged, job.cleanText, "done", 1, true);   // finalize (+prune)
     toast(`„${truncName(job.file?.name)}" fertig transkribiert`, "ok");
     updateStats();
   } catch (e) {
@@ -112,6 +116,8 @@ async function runJob(job) {
         ? `Groq-Server antwortet mehrfach mit einem Fehler (${e.status}) — meist nur ein kurzer Aussetzer. Bitte in 1–2 Minuten erneut versuchen.`
         : (e.message || String(e)));
     job.ui.error(msg);
+    // keep whatever was transcribed so far (don't lose partial work)
+    try { await putHist(job, mergeSegments(job._segs || []), null, "error", job._prog || 0); } catch {}
     toast("Transkription fehlgeschlagen", "err");
   } finally {
     releaseSlot(slot);
@@ -119,16 +125,18 @@ async function runJob(job) {
 }
 
 const truncName = (n) => !n ? "Datei" : (n.length > 36 ? n.slice(0, 33) + "…" : n);
-async function saveToHistory(job) {
-  try {
-    await history.saveTranscript({
-      id: "t" + Date.now() + "_" + job.id,
-      name: job.file?.name || "transkript",
-      dateMs: Date.now(),
-      lang: job.lang, model: state.model, duration: job.duration,
-      segCount: job.segs.length, segs: job.segs, cleanText: job.cleanText || null,
-    });
-  } catch (e) { console.warn("history save failed", e); }
+// One history record per job (stable id) — written repeatedly as the job progresses.
+async function putHist(job, segs, cleanText, status, progress, finalize) {
+  job.histId = job.histId || ("t" + Date.now() + "_" + job.id);
+  job.dateMs = job.dateMs || Date.now();
+  job._segs = segs; job._prog = progress;   // remembered for the error path
+  const rec = {
+    id: job.histId, name: job.file?.name || "transkript", dateMs: job.dateMs,
+    lang: job.lang, model: state.model, duration: job.duration || 0,
+    segCount: segs.length, segs, cleanText: cleanText || null, status, progress,
+  };
+  try { await (finalize ? history.saveTranscript(rec) : history.putTranscript(rec)); }
+  catch (e) { console.warn("history write failed", e); }
 }
 
 /* ---------------- job UI ---------------- */
@@ -437,20 +445,24 @@ async function renderHistory() {
     wrap.innerHTML = `<div class="empty"><div class="empty-mark">📂</div><h3>Noch keine Transkripte</h3><p>Transkribiere eine Datei — sie landet automatisch hier, lokal auf diesem Gerät.</p></div>`;
     return;
   }
+  const badge = (st) => st === "incomplete" ? `<span class="hbadge warn">unterbrochen</span>`
+    : st === "error" ? `<span class="hbadge err">Fehler</span>`
+    : st === "running" ? `<span class="hbadge warn">läuft …</span>` : "";
   wrap.innerHTML = items.map((it) => `
     <article class="hcard" data-id="${esc(it.id)}">
       <div class="hc-main">
-        <div class="hc-nm">${esc(it.name)}</div>
-        <div class="hc-meta">${fmtDate(it.dateMs)} · ${Math.round(it.duration / 60)} min · ${it.lang.toUpperCase()} · ${it.model.includes("turbo") ? "turbo" : "large-v3"} · ${it.segCount} Segmente${it.cleanText ? " · ✨" : ""}</div>
+        <div class="hc-nm">${esc(it.name)} ${badge(it.status)}</div>
+        <div class="hc-meta">${fmtDate(it.dateMs)} · ${Math.round((it.duration || 0) / 60)} min · ${it.lang.toUpperCase()} · ${it.model.includes("turbo") ? "turbo" : "large-v3"} · ${it.segCount || 0} Segmente${it.cleanText ? " · ✨" : ""}${it.status === "incomplete" ? " · Teil-Transkript" : ""}</div>
       </div>
       <div class="hc-actions">
-        <button class="hc-open" type="button">Öffnen</button>
+        <button class="hc-open" type="button"${it.segCount ? "" : " disabled"}>Öffnen</button>
         <button class="hc-del" type="button" aria-label="Löschen" title="Löschen">✕</button>
       </div>
     </article>`).join("");
   wrap.querySelectorAll(".hcard").forEach((card) => {
     const id = card.dataset.id;
-    card.querySelector(".hc-open").onclick = async () => { const r = await history.getTranscript(id); if (r) openReader(r); };
+    const open = card.querySelector(".hc-open");
+    if (!open.disabled) open.onclick = async () => { const r = await history.getTranscript(id); if (r) openReader(r); };
     card.querySelector(".hc-del").onclick = async () => { await history.deleteTranscript(id); renderHistory(); toast("Transkript gelöscht", "ok"); };
   });
 }
@@ -515,6 +527,11 @@ function toast(msg, kind = "ok") {
 }
 
 /* ---------------- boot ---------------- */
+// Warn before leaving while a job is running (refresh/close would lose the in-memory job).
+addEventListener("beforeunload", (e) => { if (active > 0) { e.preventDefault(); e.returnValue = ""; return ""; } });
+// Any record left "running" from a previous (refreshed/crashed) session → flag as interrupted.
+history.markInterrupted().catch(() => {});
+
 initControls();
 initStartModal();
 initKeyModal();

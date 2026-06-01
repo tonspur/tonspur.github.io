@@ -374,6 +374,11 @@ body.gated .bar,body.gated .switch-wrap,body.gated main.wrap{display:none!import
 .hc-main{min-width:0}
 .hc-nm{font-weight:600;color:var(--cream);font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .hc-meta{color:var(--mut2);font-size:12px;margin-top:3px}
+.hbadge{display:inline-block;vertical-align:middle;margin-left:6px;font-size:10.5px;font-weight:700;letter-spacing:.4px;
+  text-transform:uppercase;padding:2px 7px;border-radius:999px;border:1px solid transparent}
+.hbadge.warn{color:#f2c879;background:rgba(242,200,121,.12);border-color:rgba(242,200,121,.35)}
+.hbadge.err{color:#ff9a9a;background:rgba(255,90,90,.12);border-color:rgba(255,90,90,.38)}
+.hc-open[disabled]{opacity:.4;cursor:not-allowed}
 .hc-actions{display:flex;align-items:center;gap:8px;flex:none}
 .hc-open{font-family:inherit;cursor:pointer;font-size:13px;font-weight:600;color:#fff;border:1px solid var(--accent-deep);
   background:linear-gradient(180deg,var(--accent),var(--accent-deep));border-radius:10px;padding:8px 14px}
