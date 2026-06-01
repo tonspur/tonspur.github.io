@@ -164,10 +164,12 @@ async function setKey(k, { persistLocal = true, syncProfile = false } = {}) {
   refreshKeyChip(); pump();
 }
 
+let openKeyModal = () => {};
 function initKeyModal() {
   const modal = $("#keyModal");
   const close = () => { modal.hidden = true; modal.style.display = "none"; };
   const open = () => { $("#keyInput").value = state.key; modal.hidden = false; modal.style.display = "flex"; };
+  openKeyModal = open;
   $("#keyBtn").onclick = open;
   $("#keySave").onclick = async () => { const v = $("#keyInput").value; close(); await setKey(v, { persistLocal: true, syncProfile: true }); };
   $("#keyClear").onclick = async () => { $("#keyInput").value = ""; await setKey("", { persistLocal: true, syncProfile: true }); };
@@ -201,83 +203,93 @@ function initControls() {
   drop.addEventListener("drop", (e) => [...e.dataTransfer.files].forEach(addFile));
 }
 
-/* ---------------- auth UI ---------------- */
+/* ---------------- auth gate (login required) ---------------- */
 function initAuthUI() {
   const acct = $("#acctBtn");
-  const authModal = $("#authModal"), unlockModal = $("#unlockModal");
+  const unlockModal = $("#unlockModal");
+  const crystal = $("#gateCrystal");
   let mode = "login";
 
   const renderAcct = () => {
-    if (!auth.authEnabled()) { acct.textContent = "Anmelden"; return; }
     acct.textContent = state.account ? `👤 ${state.account.email.split("@")[0]}` : "Anmelden";
     acct.classList.toggle("ok", !!state.account);
   };
-  const closeAuth = () => { authModal.hidden = true; authModal.style.display = "none"; };
-  const openAuth = () => {
-    if (!auth.authEnabled()) { $("#authNote").textContent = "Cloud-Login wird nach dem einmaligen Setup aktiviert. Solange wird dein Key lokal im Browser gespeichert (🔑)."; document.getElementById("authForm").style.display = "none"; document.getElementById("authToggle").style.display = "none"; }
-    authModal.hidden = false; authModal.style.display = "flex"; $("#authErr").textContent = ""; $("#authEmail").focus?.();
-  };
+  const ungate = () => document.body.classList.remove("gated");
+  const showGate = () => { document.body.classList.add("gated"); setTimeout(() => $("#gEmail").focus?.(), 50); };
+
   const setMode = (m) => {
     mode = m;
-    $("#authTitle").textContent = m === "login" ? "Anmelden" : "Konto erstellen";
-    $("#authSubmit").textContent = m === "login" ? "Anmelden" : "Registrieren";
-    $("#authToggle").textContent = m === "login" ? "Noch kein Konto? Registrieren" : "Schon ein Konto? Anmelden";
-    $("#authPass").autocomplete = m === "login" ? "current-password" : "new-password";
+    $("#gateTitle").textContent = m === "login" ? "Im Studio anmelden" : "Konto erstellen";
+    $("#gSubmit").textContent = m === "login" ? "Anmelden" : "Konto erstellen";
+    $("#gToggle").textContent = m === "login" ? "Konto erstellen" : "Anmelden";
+    const foot = $(".gate-foot"); if (foot.firstChild) foot.firstChild.textContent = m === "login" ? "Noch kein Konto? " : "Schon ein Konto? ";
+    $("#gPass").autocomplete = m === "login" ? "current-password" : "new-password";
+    $("#gErr").textContent = "";
   };
 
-  acct.onclick = async () => {
-    if (state.account) {
-      if (confirm(`Abmelden (${state.account.email})?`)) { await auth.signOut(); state.account = null; await setKey("", { persistLocal: true }); renderAcct(); }
-    } else openAuth();
-  };
-  $("#authToggle").onclick = () => setMode(mode === "login" ? "signup" : "login");
-  $("#authClose").onclick = closeAuth;
-  authModal.addEventListener("click", (e) => { if (e.target === authModal) closeAuth(); });
+  // crystal reacts to every keystroke
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const pop = () => { if (reduce) return; crystal.classList.remove("pop"); void crystal.offsetWidth; crystal.classList.add("pop"); };
+  $("#gEmail").addEventListener("keydown", pop);
+  $("#gPass").addEventListener("keydown", pop);
 
-  $("#authForm").addEventListener("submit", async (e) => {
+  $("#gToggle").onclick = () => setMode(mode === "login" ? "signup" : "login");
+  $("#gForgot").onclick = async () => {
+    const email = $("#gEmail").value.trim();
+    if (!email) { $("#gErr").textContent = "Bitte zuerst deine E-Mail eingeben."; return; }
+    try { await auth.resetPassword(email); $("#gNote").textContent = "Falls ein Konto existiert, kommt eine E-Mail zum Zurücksetzen."; }
+    catch (ex) { $("#gErr").textContent = ex.message; }
+  };
+
+  $("#gateForm").addEventListener("submit", async (e) => {
     e.preventDefault();
-    const email = $("#authEmail").value.trim(), pass = $("#authPass").value;
-    const err = $("#authErr"); err.textContent = "";
+    const email = $("#gEmail").value.trim(), pass = $("#gPass").value;
+    const err = $("#gErr"); err.textContent = ""; $("#gNote").textContent = "";
     if (!email || pass.length < 8) { err.textContent = "E-Mail eingeben und Passwort ≥ 8 Zeichen."; return; }
-    const btn = $("#authSubmit"); btn.disabled = true; btn.textContent = "…";
+    const btn = $("#gSubmit"); const lbl = btn.textContent; btn.disabled = true; btn.textContent = "…";
     try {
       if (mode === "signup") {
         const d = await auth.signUp(email, pass);
-        if (!d.session) { $("#authNote").textContent = "Fast fertig — bitte bestätige die E-Mail, dann melde dich an."; setMode("login"); btn.disabled = false; btn.textContent = "Anmelden"; return; }
+        if (!d.session) { $("#gNote").textContent = "Fast fertig — bitte bestätige die E-Mail, dann melde dich an."; setMode("login"); return; }
       } else {
         await auth.signIn(email, pass);
       }
       const res = await auth.unlock(pass);
-      state.account = { email };
+      state.account = { email }; renderAcct(); ungate();
       if (res.groqKey) await setKey(res.groqKey, { persistLocal: false });
-      else if (res.badPassword) $("#authNote").textContent = "Konnte gespeicherten Key nicht entschlüsseln — bitte Groq-Key neu eingeben (🔑).";
-      renderAcct(); closeAuth();
+      else if (!state.key) openKeyModal();   // need a Groq key (badPassword or first time)
     } catch (ex) { err.textContent = ex.message || "Anmeldung fehlgeschlagen."; }
-    finally { btn.disabled = false; btn.textContent = mode === "login" ? "Anmelden" : "Registrieren"; }
+    finally { btn.disabled = false; btn.textContent = lbl; }
   });
 
-  // unlock modal
+  // unlock modal (same-device cache-miss)
   const closeUnlock = () => { unlockModal.hidden = true; unlockModal.style.display = "none"; };
-  $("#unlockCancel").onclick = closeUnlock;
+  $("#unlockCancel").onclick = () => { closeUnlock(); openKeyModal(); };
   $("#unlockSubmit").onclick = async () => {
     const pass = $("#unlockPass").value; const err = $("#unlockErr"); err.textContent = "";
-    try { const res = await auth.unlock(pass); if (res.groqKey) { await setKey(res.groqKey, { persistLocal: false }); closeUnlock(); } else if (res.badPassword) err.textContent = "Falsches Passwort."; else closeUnlock(); }
+    try { const res = await auth.unlock(pass); if (res.groqKey) { await setKey(res.groqKey, { persistLocal: false }); closeUnlock(); } else if (res.badPassword) err.textContent = "Falsches Passwort."; else { closeUnlock(); openKeyModal(); } }
     catch (ex) { err.textContent = ex.message; }
   };
 
-  setMode("login");
-  renderAcct();
+  acct.onclick = async () => {
+    if (state.account) { if (confirm(`Abmelden (${state.account.email})?`)) { await auth.signOut(); state.account = null; await setKey("", { persistLocal: true }); renderAcct(); showGate(); } }
+  };
 
-  // restore session on load
+  setMode("login"); renderAcct();
+
+  // boot: restore session or require login
   if (auth.authEnabled()) {
     auth.loadFromCache().then((r) => {
       if (r.signedIn) {
-        state.account = { email: r.email }; renderAcct();
+        state.account = { email: r.email }; renderAcct(); ungate();
         if (r.groqKey) setKey(r.groqKey, { persistLocal: false });
         else if (r.needsPassword) { unlockModal.hidden = false; unlockModal.style.display = "flex"; }
-      }
-    }).catch(() => {});
+        else openKeyModal();
+      } else showGate();
+    }).catch(() => showGate());
     auth.onChange((session) => { state.account = session ? { email: session.user.email } : null; renderAcct(); });
+  } else {
+    ungate(); // no cloud config → open (local-key mode)
   }
 }
 

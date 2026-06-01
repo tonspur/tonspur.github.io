@@ -48,6 +48,11 @@ export async function signOut() {
   await c.auth.signOut();
   await clearCachedKeys();
 }
+export async function resetPassword(email) {
+  const c = await getClient(); if (!c) throw new Error("Cloud-Login nicht konfiguriert.");
+  const { error } = await c.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname });
+  if (error) throw new Error(error.message);
+}
 
 async function fetchProfile(c, uid) {
   const { data, error } = await c.from("profiles").select("enc_key,enc_iv,kdf_salt").eq("id", uid).maybeSingle();

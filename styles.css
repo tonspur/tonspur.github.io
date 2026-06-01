@@ -311,4 +311,24 @@ body.mode-runner .preview{display:none}          /* keep rows compact — no tra
 body.mode-runner .dls{margin-top:10px}
 body.mode-runner .dls a{padding:5px 10px;font-size:11.5px}
 
+/* ===================== v11 auth gate ===================== */
+#authGate{display:none}
+body.gated #authGate{display:flex;position:fixed;inset:0;z-index:50;align-items:center;justify-content:center;padding:24px;overflow:auto}
+body.gated .bar,body.gated .switch-wrap,body.gated main.wrap{display:none!important}
+.gate-card{width:100%;max-width:384px;text-align:center;animation:rise .5s ease both}
+.crystal{filter:drop-shadow(0 10px 34px rgba(139,92,246,.55));margin-bottom:6px;transform-origin:50% 60%}
+.crystal.pop{animation:crystalpop .3s ease}
+@keyframes crystalpop{0%{transform:scale(1) rotate(0)}28%{transform:scale(1.16) rotate(-6deg)}60%{transform:scale(.95) rotate(4deg)}100%{transform:scale(1) rotate(0)}}
+#gateTitle{font-family:"Clash Display",sans-serif;font-weight:700;font-size:30px;margin:8px 0 8px}
+.gate-sub{color:var(--mut);font-size:13.5px;margin:0 auto 24px;max-width:330px;line-height:1.5}
+#gateForm{text-align:left}
+#gateForm label{display:block;font-size:13px;font-weight:600;letter-spacing:0;text-transform:none;color:var(--cream);margin:0 0 7px}
+#gateForm input{width:100%;background:var(--ink2);border:1px solid var(--line);color:var(--cream);border-radius:12px;
+  padding:13px 14px;font-family:inherit;font-size:15px;min-height:48px;margin-bottom:14px}
+#gateForm input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(139,92,246,.18)}
+.gate-pwrow{display:flex;justify-content:space-between;align-items:baseline}
+#gSubmit{margin-top:6px}
+.gate-foot{color:var(--mut);font-size:13.5px;margin-top:22px;text-align:center}
+#gNote{text-align:center;margin-top:10px}
+
 @media(prefers-reduced-motion:reduce){*{animation:none!important}}

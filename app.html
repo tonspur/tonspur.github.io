@@ -11,12 +11,41 @@
 <link rel="preconnect" href="https://api.fontshare.com">
 <link rel="preconnect" href="https://cdn.fontshare.com" crossorigin>
 <link href="https://api.fontshare.com/v2/css?f[]=clash-display@600,700&f[]=satoshi@400,500,700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=9">
+<link rel="stylesheet" href="styles.css?v=11">
 </head>
-<body class="mode-single">
+<body class="mode-single gated">
 <canvas id="bg" aria-hidden="true"></canvas>
 <div class="aurora" aria-hidden="true"><span class="o o1"></span><span class="o o2"></span><span class="o o3"></span></div>
 <div class="grain" aria-hidden="true"></div>
+
+<!-- AUTH GATE (full screen, required to use the studio) -->
+<section id="authGate">
+  <div class="gate-card">
+    <svg id="gateCrystal" class="crystal" viewBox="0 0 100 124" width="86" height="106" aria-hidden="true">
+      <defs>
+        <linearGradient id="cgL" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#d6c9ff"/><stop offset="1" stop-color="#8b5cf6"/></linearGradient>
+        <linearGradient id="cgR" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7c3aed"/><stop offset="1" stop-color="#4c1d95"/></linearGradient>
+        <linearGradient id="cgT" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#efe6ff"/><stop offset="1" stop-color="#a78bfa"/></linearGradient>
+      </defs>
+      <polygon points="50,6 24,56 47,120" fill="url(#cgL)"/>
+      <polygon points="50,6 80,50 47,120" fill="url(#cgR)"/>
+      <polygon points="50,6 24,56 40,40" fill="url(#cgT)" opacity="0.9"/>
+      <polygon points="50,6 80,50 62,38" fill="#b9a4f7" opacity="0.85"/>
+    </svg>
+    <h1 id="gateTitle">Im Studio anmelden</h1>
+    <p class="gate-sub" id="gateSub">Melde dich an, um den Transcriber zu nutzen. Dein Groq-Key wird verschlüsselt gespeichert.</p>
+    <form id="gateForm" novalidate>
+      <label for="gEmail">E-Mail</label>
+      <input type="email" id="gEmail" autocomplete="email" placeholder="du@beispiel.de" required>
+      <div class="gate-pwrow"><label for="gPass">Passwort</label><button type="button" id="gForgot" class="linklike">Passwort vergessen?</button></div>
+      <input type="password" id="gPass" autocomplete="current-password" placeholder="••••••••" minlength="8" required>
+      <div class="field-err" id="gErr" role="alert"></div>
+      <button type="submit" id="gSubmit" class="full-btn">Anmelden</button>
+    </form>
+    <p class="gate-foot">Noch kein Konto? <button type="button" id="gToggle" class="linklike">Konto erstellen</button></p>
+    <p class="fine" id="gNote"></p>
+  </div>
+</section>
 
 <header class="bar">
   <a class="brand" href="index.html" aria-label="Zur Startseite">
@@ -111,27 +140,6 @@
   </div>
 </div>
 
-<!-- AUTH MODAL -->
-<div class="modal" id="authModal" hidden>
-  <div class="modal-card panel">
-    <h2 id="authTitle">Anmelden</h2>
-    <p id="authIntro">Dein Groq-Key wird verschlüsselt gespeichert — kein erneutes Eintippen, auch auf anderen Geräten.</p>
-    <form id="authForm" novalidate>
-      <label for="authEmail">E-Mail</label>
-      <input type="email" id="authEmail" autocomplete="email" placeholder="du@beispiel.de" required>
-      <label for="authPass" style="margin-top:12px">Passwort</label>
-      <input type="password" id="authPass" autocomplete="current-password" placeholder="mind. 8 Zeichen" minlength="8" required>
-      <div class="field-err" id="authErr" role="alert"></div>
-      <button type="submit" id="authSubmit" class="full-btn">Anmelden</button>
-    </form>
-    <div class="auth-foot">
-      <button id="authToggle" class="linklike">Noch kein Konto? Registrieren</button>
-      <button id="authClose" class="linklike muted">Schließen</button>
-    </div>
-    <p class="fine" id="authNote"></p>
-  </div>
-</div>
-
 <!-- UNLOCK MODAL -->
 <div class="modal" id="unlockModal" hidden>
   <div class="modal-card panel">
@@ -144,7 +152,7 @@
   </div>
 </div>
 
-<script src="bg.js?v=9"></script>
-<script type="module" src="app.js?v=9"></script>
+<script src="bg.js?v=11"></script>
+<script type="module" src="app.js?v=11"></script>
 </body>
 </html>
