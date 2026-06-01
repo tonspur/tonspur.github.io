@@ -245,11 +245,14 @@ input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(13
 .wrap{position:relative;z-index:10;max-width:760px;margin:0 auto;padding:14px 22px 90px}
 .mode-intro{text-align:center;color:var(--mut);font-size:14px;margin:6px 0 22px}
 
-/* mode visibility */
-body.mode-single .only-runner,body.mode-single .only-calc,
-body.mode-runner .only-single,body.mode-runner .only-calc,
-body.mode-calc .only-single,body.mode-calc .only-runner{display:none!important}
-body.mode-calc .hide-calc{display:none!important}
+/* mode visibility (transcribe | history | calc) — wrappers keep children's own display */
+.view{display:none}
+body.mode-transcribe .view.only-transcribe{display:block}
+body.mode-history .view.only-history{display:block}
+body.mode-calc .view.only-calc{display:block}
+/* queue header only when >1 job */
+.queue-head{display:none}
+body.mode-transcribe.has-many .queue-head{display:flex}
 
 .dropcard{background:var(--glass);border:1px solid var(--glass-line);border-radius:var(--r);padding:18px;
   box-shadow:var(--shadow);backdrop-filter:blur(14px);margin-bottom:16px}
@@ -302,24 +305,22 @@ body.mode-calc .hide-calc{display:none!important}
   .bar-right .chip{padding:8px 11px;font-size:12px}
 }
 
-/* ===================== v9: runner board vs single block ===================== */
-.queue-head{display:flex;align-items:center;gap:10px;margin:6px 2px 4px}
+/* ===================== queue: single big block vs many compact rows ===================== */
+.queue-head{align-items:center;gap:10px;margin:14px 2px 4px}
 .queue-head span:first-child{font-family:"Clash Display",sans-serif;font-weight:600;font-size:15px;letter-spacing:1px;text-transform:uppercase;color:var(--mut)}
 .qcount{display:inline-grid;place-items:center;min-width:24px;height:24px;padding:0 7px;border-radius:999px;
   background:rgba(139,92,246,.16);color:var(--accent-2);font-size:12px;font-weight:700}
 
-/* Single mode: big focused result card (default .job styles already do this) */
-
-/* Runner mode: compact queue rows */
-body.mode-runner .queue{gap:8px}
-body.mode-runner .job{padding:12px 16px}
-body.mode-runner .job .head{gap:12px}
-body.mode-runner .ring-wrap{transform:scale(.82)}
-body.mode-runner .job .nm{font-size:14px}
-body.mode-runner .phase{margin-top:6px;font-size:11.5px}
-body.mode-runner .preview{display:none}          /* keep rows compact — no transcript preview */
-body.mode-runner .dls{margin-top:10px}
-body.mode-runner .dls a{padding:5px 10px;font-size:11.5px}
+/* 1 job → big focused result card (default .job styles). Many → compact rows: */
+body.has-many .queue{gap:8px}
+body.has-many .job{padding:12px 16px}
+body.has-many .job .head{gap:12px}
+body.has-many .ring-wrap{transform:scale(.82)}
+body.has-many .job .nm{font-size:14px}
+body.has-many .phase{margin-top:6px;font-size:11.5px}
+body.has-many .preview{display:none}          /* keep rows compact — no transcript preview */
+body.has-many .dls{margin-top:10px}
+body.has-many .dls a{padding:5px 10px;font-size:11.5px}
 
 /* ===================== v11 auth gate ===================== */
 #authGate{display:none}
@@ -346,4 +347,76 @@ body.gated .bar,body.gated .switch-wrap,body.gated main.wrap{display:none!import
 .gate-foot{color:var(--mut);font-size:13.5px;margin-top:22px;text-align:center}
 #gNote{text-align:center;margin-top:10px}
 
-@media(prefers-reduced-motion:reduce){*{animation:none!important}}
+/* ===================== v14: timing, reader, history, toasts, calc, polish ===================== */
+/* job timing line + load-in */
+.timing{color:var(--mut2);font-size:12px;margin-top:4px;font-variant-numeric:tabular-nums}
+.job{opacity:0;transform:translateY(10px);transition:opacity .4s ease,transform .4s ease}
+.job.in{opacity:1;transform:none}
+.read-btn{font-family:inherit;cursor:pointer;border-radius:10px;padding:8px 14px;font-size:13px;font-weight:600;
+  border:1px solid var(--accent-deep);background:linear-gradient(180deg,var(--accent),var(--accent-deep));color:#fff}
+.dls{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+
+/* calc extra lines */
+.calc-line{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-top:14px;font-size:13px;color:var(--mut)}
+.calc-line b{font-family:"Clash Display",sans-serif;color:var(--accent-2);font-size:18px}
+#calcPay{margin-top:6px}
+
+/* history view */
+.view-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:6px 2px 14px}
+.view-head h2{font-family:"Clash Display",sans-serif;font-size:22px;margin:0}
+#histClear{font-family:inherit;cursor:pointer;font-size:12.5px;color:var(--mut);background:none;border:1px solid var(--line);border-radius:9px;padding:7px 12px}
+#histClear:hover{color:var(--cream);border-color:var(--accent)}
+.history-list{display:flex;flex-direction:column;gap:10px}
+.hcard{display:flex;align-items:center;gap:14px;justify-content:space-between;
+  background:var(--glass);border:1px solid var(--glass-line);border-radius:16px;padding:14px 16px;
+  backdrop-filter:blur(14px);transition:border-color .2s ease,transform .2s ease}
+.hcard:hover{border-color:rgba(139,92,246,.4);transform:translateY(-1px)}
+.hc-main{min-width:0}
+.hc-nm{font-weight:600;color:var(--cream);font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hc-meta{color:var(--mut2);font-size:12px;margin-top:3px}
+.hc-actions{display:flex;align-items:center;gap:8px;flex:none}
+.hc-open{font-family:inherit;cursor:pointer;font-size:13px;font-weight:600;color:#fff;border:1px solid var(--accent-deep);
+  background:linear-gradient(180deg,var(--accent),var(--accent-deep));border-radius:10px;padding:8px 14px}
+.hc-del{font-family:inherit;cursor:pointer;font-size:13px;color:var(--mut);background:none;border:1px solid var(--line);
+  border-radius:10px;width:34px;height:34px}
+.hc-del:hover{color:#ff8a8a;border-color:rgba(255,90,90,.4)}
+.empty{text-align:center;padding:60px 20px;color:var(--mut)}
+.empty-mark{font-size:40px;opacity:.7}
+.empty h3{font-family:"Clash Display",sans-serif;color:var(--cream);font-size:20px;margin:14px 0 6px}
+.empty p{font-size:14px;max-width:360px;margin:0 auto}
+
+/* reading mode */
+#readModal{position:fixed;inset:0;z-index:120;display:flex;align-items:stretch;justify-content:center;
+  padding:0;background:rgba(5,4,8,.8);backdrop-filter:blur(8px)}
+#readModal[hidden]{display:none}
+.read-card{display:flex;flex-direction:column;width:100%;max-width:820px;margin:auto;max-height:100%;
+  background:linear-gradient(180deg,#13101d,#0d0b16);border-left:1px solid var(--glass-line);border-right:1px solid var(--glass-line)}
+.read-top{display:flex;align-items:flex-start;gap:14px;justify-content:space-between;padding:22px 26px 8px}
+.read-top h2{font-family:"Clash Display",sans-serif;font-size:22px;margin:0 0 4px;word-break:break-word}
+#readMeta{color:var(--mut2);font-size:12.5px}
+#readClose{font-family:inherit;cursor:pointer;flex:none;width:38px;height:38px;border-radius:10px;font-size:18px;
+  color:var(--mut);background:var(--ink2);border:1px solid var(--line)}
+#readClose:hover{color:var(--cream);border-color:var(--accent)}
+.read-tools{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:6px 26px 14px;border-bottom:1px solid var(--line)}
+#readSearch{flex:1;min-width:160px;background:var(--ink2);border:1px solid var(--line);color:var(--cream);
+  border-radius:10px;padding:10px 12px;font-family:inherit;font-size:14px}
+#readSearch:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(139,92,246,.16)}
+.read-ts{display:inline-flex;align-items:center;gap:7px;color:var(--mut);font-size:12.5px;cursor:pointer;user-select:none}
+#readCopy{font-family:inherit;cursor:pointer;font-size:12.5px;color:var(--cream);background:var(--ink2);border:1px solid var(--line);border-radius:10px;padding:9px 12px}
+.read-dls{display:flex;flex-wrap:wrap;gap:8px;padding:12px 26px 0}
+.read-body{overflow:auto;padding:14px 26px 40px;line-height:1.75;font-size:16.5px;color:#dcdce8}
+.read-body p{margin:0 0 1.1em;white-space:pre-wrap}
+.read-body mark{background:rgba(217,70,239,.32);color:#fff;border-radius:3px;padding:0 2px}
+.read-body .muted{color:var(--mut2)}
+@media(max-width:560px){.read-top,.read-tools,.read-dls,.read-body{padding-left:16px;padding-right:16px}}
+
+/* toasts */
+#toasts{position:fixed;left:0;right:0;bottom:22px;z-index:200;display:flex;flex-direction:column;align-items:center;gap:8px;pointer-events:none}
+.toast{pointer-events:auto;max-width:90vw;background:#1a1528;border:1px solid var(--glass-line);color:var(--cream);
+  border-radius:12px;padding:12px 18px;font-size:14px;box-shadow:0 14px 34px -12px rgba(0,0,0,.7);
+  opacity:0;transform:translateY(12px);transition:opacity .3s ease,transform .3s ease}
+.toast.in{opacity:1;transform:none}
+.toast.ok{border-color:rgba(110,231,160,.4)}
+.toast.err{border-color:rgba(255,120,120,.45)}
+
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}

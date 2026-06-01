@@ -1,7 +1,8 @@
-// TONSPUR app wiring: state, parallel runner pool, rendering, cost panel, auth UI.
-import { FFmpegSlot, groqTranscribe, cleanupAll, retry429, buildTxt, buildSrt, buildVtt, buildJson } from "./engine.js";
-import { estimate, fmtMoney, recordRun, getUsage } from "./cost.js";
+// TONSPUR app wiring: state, transcribe pool, history, rendering, cost panel, auth UI.
+import { FFmpegSlot, groqTranscribe, cleanupAll, retry429, mergeSegments, buildTxt, buildSrt, buildVtt, buildJson, tc } from "./engine.js";
+import { estimate, estimateTime, fmtMoney, fmtDur, recordRun, getUsage } from "./cost.js";
 import * as auth from "./auth.js";
+import * as history from "./history.js";
 
 const $ = (s) => document.querySelector(s);
 const lsGet = (k) => { try { return localStorage.getItem(k) || ""; } catch { return ""; } };
@@ -9,14 +10,22 @@ const lsSet = (k, v) => { try { localStorage.setItem(k, v); return true; } catch
 const lsDel = (k) => { try { localStorage.removeItem(k); } catch {} };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+const PREFS_KEY = "tonspur_prefs";
+const prefs = (() => { try { return JSON.parse(localStorage.getItem(PREFS_KEY) || "{}"); } catch { return {}; } })();
+
 const state = {
-  mode: "single",          // single | runner | calc
-  lang: "en", model: "whisper-large-v3", formats: new Set(["txt", "srt"]),
-  clean: true, glossary: "", concurrency: 2,
+  mode: "transcribe",      // transcribe | history | calc
+  lang: prefs.lang || "en",
+  model: prefs.model || "whisper-large-v3",
+  formats: new Set(prefs.formats?.length ? prefs.formats : ["txt", "srt"]),
+  clean: prefs.clean !== undefined ? prefs.clean : true,
+  glossary: "",
+  concurrency: prefs.concurrency || 1,
   key: lsGet("groq_key"), keyStored: true,
   account: null,          // { email } when signed in
 };
-const effConc = () => (state.mode === "single" ? 1 : state.concurrency);
+const savePrefs = () => lsSet(PREFS_KEY, JSON.stringify({ lang: state.lang, model: state.model, formats: [...state.formats], clean: state.clean, concurrency: state.concurrency }));
+const effConc = () => state.concurrency;
 
 const queue = [];
 let jobSeq = 0, active = 0;
@@ -38,6 +47,7 @@ function pump() {
 
 async function runJob(job) {
   const slot = acquireSlot();
+  job.ui.startTimer();
   try {
     if (!state.key) throw new Error("Kein Groq-Key. Oben rechts auf 🔑 (oder anmelden).");
     job.ui.setState("run");
@@ -49,28 +59,30 @@ async function runJob(job) {
 
     // On 429 (Groq rate limit) wait out the countdown and retry — don't fail the job.
     const waitFn = (label) => async (sec) => {
-      for (let left = sec; left > 0; left--) { job.ui.phase(`${label} · Groq-Limit erreicht — neuer Versuch in ${left}s …`); await sleep(1000); }
+      for (let left = sec; left > 0; left--) { job.ui.phase(`${label} · wartet auf Gratis-Kontingent — weiter in ${left}s …`); await sleep(1000); }
     };
 
-    let requests = 0;
+    let requests = 0, prevTail = "";
     const segs = [];
     for (let i = 0; i < chunks.length; i++) {
-      const label = `Transkribieren (Groq) … Stück ${i + 1}/${chunks.length}`;
+      const label = chunks.length > 1 ? `Transkribieren … Stück ${i + 1}/${chunks.length}` : "Transkribieren …";
       job.ui.phase(label, 0.35 + 0.5 * (i / chunks.length));
+      const prompt = (job.glossary + " " + prevTail).trim();   // glossary + tail of prev chunk → continuity
       const { segments } = await retry429(
-        () => groqTranscribe({ blob: chunks[i].blob, key: state.key, model: state.model, lang: job.lang, glossary: job.glossary }),
+        () => groqTranscribe({ blob: chunks[i].blob, key: state.key, model: state.model, lang: job.lang, prompt }),
         waitFn(label));
       requests++;
       for (const s of segments) segs.push({ start: s.start + chunks[i].offset, end: s.end + chunks[i].offset, text: s.text });
+      if (segments.length) prevTail = segments.map((s) => s.text).join(" ").slice(-200);
     }
-    segs.sort((a, b) => a.start - b.start);
-    if (!segs.length) throw new Error("Keine Sprache erkannt.");
-    job.segs = segs;
+    const merged = mergeSegments(segs);   // stitch timeline + drop overlap duplicates
+    if (!merged.length) throw new Error("Keine Sprache erkannt.");
+    job.segs = merged;
 
     job.cleanText = null;
-    if (job.clean && job.formats.has("txt")) {
+    if (job.clean) {
       try {
-        const raw = segs.map((s) => s.text).join(" ");
+        const raw = merged.map((s) => s.text).join(" ");
         job.ui.phase("KI-Aufräumen …", 0.9);
         job.cleanText = await cleanupAll(raw, job.lang, state.key,
           (p) => job.ui.phase(`KI-Aufräumen … ${Math.round(p * 100)}%`, 0.9 + 0.09 * p),
@@ -78,24 +90,42 @@ async function runJob(job) {
         requests += Math.max(1, Math.ceil(raw.length / 6000));
       } catch { job.cleanText = null; }
     }
-    // record local daily usage (Groq doesn't expose live quota to the browser)
+    // record local usage (Groq doesn't expose live quota to the browser)
     recordRun({ requests, seconds: job.duration, usd: estimate(job.duration, state.model, !!job.cleanText).total });
     renderUsage();
 
     job.ui.phase("Fertig", 1);
+    job.ui.stopTimer();
     job.ui.setState("done");
     job.ui.renderResult(job);
+    saveToHistory(job);
+    toast(`„${truncName(job.file?.name)}" fertig transkribiert`, "ok");
     updateStats();
   } catch (e) {
     job.status = "error";
+    job.ui.stopTimer();
     job.ui.setState("err");
     const msg = e.status === 429
       ? "Groq Free-Tier Stundenlimit (7.200 s Audio/h) erreicht — später erneut oder weniger / kürzere Dateien gleichzeitig."
       : (e.message || String(e));
     job.ui.error(msg);
+    toast("Transkription fehlgeschlagen", "err");
   } finally {
     releaseSlot(slot);
   }
+}
+
+const truncName = (n) => !n ? "Datei" : (n.length > 36 ? n.slice(0, 33) + "…" : n);
+async function saveToHistory(job) {
+  try {
+    await history.saveTranscript({
+      id: "t" + Date.now() + "_" + job.id,
+      name: job.file?.name || "transkript",
+      dateMs: Date.now(),
+      lang: job.lang, model: state.model, duration: job.duration,
+      segCount: job.segs.length, segs: job.segs, cleanText: job.cleanText || null,
+    });
+  } catch (e) { console.warn("history save failed", e); }
 }
 
 /* ---------------- job UI ---------------- */
@@ -110,40 +140,64 @@ function jobUI(job) {
       <div class="state run">in Arbeit</div>
     </div>
     <div class="phase">in Warteschlange …</div>
+    <div class="timing"></div>
     <div class="body"></div>`;
   el.querySelector(".nm").textContent = job.file ? job.file.name : job.name;
   $("#jobs").prepend(el);
+  requestAnimationFrame(() => el.classList.add("in"));
   const q = (s) => el.querySelector(s);
+  let cur = 0, startMs = 0, timer = 0;
+  const renderTiming = () => {
+    if (!startMs) return;
+    const el2 = q(".timing");
+    const elapsed = (Date.now() - startMs) / 1000;
+    let txt = `⏱ ${fmtDur(elapsed)}`;
+    if (cur > 0.04 && cur < 0.99) txt += ` · noch ca. ${fmtDur(elapsed * (1 - cur) / cur)}`;
+    el2.textContent = txt;
+  };
   return {
+    startTimer() { startMs = Date.now(); clearInterval(timer); timer = setInterval(renderTiming, 1000); renderTiming(); },
+    stopTimer() { clearInterval(timer); timer = 0; if (startMs) q(".timing").textContent = `⏱ ${fmtDur((Date.now() - startMs) / 1000)} gesamt`; },
     setState(kind) {
       const m = { run: ["run", "in Arbeit"], done: ["done", "fertig"], err: ["err", "Fehler"] };
       const st = q(".state"); st.className = "state " + m[kind][0]; st.textContent = m[kind][1];
     },
     phase(txt, pct) {
       q(".phase").textContent = txt;
-      if (pct != null) { const r = q(".ring"); r.style.setProperty("--p", Math.round(pct * 100)); r.querySelector("b").textContent = Math.round(pct * 100) + "%"; }
+      if (pct != null) { cur = pct; const r = q(".ring"); r.style.setProperty("--p", Math.round(pct * 100)); r.querySelector("b").textContent = Math.round(pct * 100) + "%"; renderTiming(); }
     },
-    error(msg) { q(".phase").style.display = "none"; q(".ring-wrap").style.display = "none"; q(".body").innerHTML = `<div class="errbox">${esc(msg)}</div>`; },
+    error(msg) { q(".phase").style.display = "none"; q(".timing").style.display = "none"; q(".ring-wrap").style.display = "none"; q(".body").innerHTML = `<div class="errbox">${esc(msg)}</div>`; },
     renderResult(j) {
-      const meta = { model: state.model, lang: j.lang, duration: j.duration, segments: j.segs.length, clean: !!j.cleanText };
-      const outs = {
-        txt: { l: "TXT", d: buildTxt(j.segs, j.cleanText, meta), t: "text/plain" },
-        srt: { l: "SRT", d: buildSrt(j.segs), t: "application/x-subrip" },
-        vtt: { l: "VTT", d: buildVtt(j.segs), t: "text/vtt" },
-        json: { l: "JSON", d: buildJson(j.segs, meta), t: "application/json" },
-      };
-      const base = (j.file ? j.file.name.replace(/\.[^.]+$/, "") : "transkript").slice(0, 60);
-      const dls = [...j.formats].map((f) => { const o = outs[f]; const url = URL.createObjectURL(new Blob([o.d], { type: o.t })); return `<a href="${url}" download="${base}.${f}">⬇ ${o.l}</a>`; }).join("");
-      const preview = j.cleanText || (outs.txt.d.split("---\n\n")[1] || outs.txt.d);
-      q(".phase").textContent = `${meta.model} · ${Math.round(j.duration / 60)} min · ${j.segs.length} Segmente${j.cleanText ? " · ✨ veredelt" : ""}`;
-      q(".body").innerHTML = `<div class="dls">${dls}</div><div class="preview"><span class="copy">kopieren</span>${esc(preview)}</div>`;
-      q(".copy").onclick = () => { navigator.clipboard.writeText(preview); q(".copy").textContent = "kopiert ✓"; };
+      const rec = { name: j.file?.name || "transkript", lang: j.lang, model: state.model, duration: j.duration, segs: j.segs, cleanText: j.cleanText };
+      const { dls, preview } = buildOutputs(rec);
+      q(".phase").textContent = `${rec.model} · ${Math.round(j.duration / 60)} min · ${j.segs.length} Segmente${j.cleanText ? " · ✨ veredelt" : ""}`;
+      q(".body").innerHTML = `<div class="dls">${dls}<button class="read-btn" type="button">📖 Lesen</button></div><div class="preview">${esc(preview.slice(0, 1200))}${preview.length > 1200 ? " …" : ""}</div>`;
+      q(".read-btn").onclick = () => openReader(rec);
     },
   };
 }
-function updateStats() { const q = $("#qcount"); if (q) q.textContent = queue.length; renderCalc(); }
+
+// Build download links + preview text for a transcript record { name, lang, model, duration, segs, cleanText }.
+function buildOutputs(rec, fmtsSet) {
+  const meta = { model: rec.model, lang: rec.lang, duration: rec.duration, segments: rec.segs.length, clean: !!rec.cleanText };
+  const outs = {
+    txt: { l: "TXT", d: buildTxt(rec.segs, rec.cleanText, meta), t: "text/plain" },
+    srt: { l: "SRT", d: buildSrt(rec.segs), t: "application/x-subrip" },
+    vtt: { l: "VTT", d: buildVtt(rec.segs), t: "text/vtt" },
+    json: { l: "JSON", d: buildJson(rec.segs, meta), t: "application/json" },
+  };
+  const base = rec.name.replace(/\.[^.]+$/, "").slice(0, 60) || "transkript";
+  const fmts = fmtsSet ? [...fmtsSet] : ["txt", "srt", "vtt", "json"];
+  const dls = fmts.map((f) => { const o = outs[f]; const url = URL.createObjectURL(new Blob([o.d], { type: o.t })); return `<a href="${url}" download="${esc(base)}.${f}">⬇ ${o.l}</a>`; }).join("");
+  const preview = rec.cleanText || (outs.txt.d.split("---\n\n")[1] || outs.txt.d);
+  return { dls, preview, base };
+}
+function updateStats() {
+  const q = $("#qcount"); if (q) q.textContent = queue.length;
+  document.body.classList.toggle("has-many", queue.length > 1);
+}
 function addFile(file) {
-  const job = { id: ++jobSeq, file, lang: state.lang, formats: new Set(state.formats), clean: state.clean, glossary: state.glossary, status: "queued", segs: [], duration: 0 };
+  const job = { id: ++jobSeq, file, lang: state.lang, clean: state.clean, glossary: state.glossary, status: "queued", segs: [], duration: 0 };
   job.ui = jobUI(job);
   queue.push(job);
   updateStats(); pump();
@@ -164,8 +218,14 @@ function renderUsage() {
 }
 function renderCalc() {
   const min = Math.max(0, parseFloat($("#calcMin").value) || 0);
-  const c = estimate(min * 60, state.model, state.clean);
-  $("#calcCost").textContent = min ? fmtMoney(c.total) : "—";
+  const sec = min * 60;
+  $("#calcCost").textContent = "0 €";   // Free-Tier — always free
+  const dur = $("#calcDur"); if (dur) dur.textContent = min ? `ca. ${fmtDur(estimateTime(sec, state.clean).lowSec)}–${fmtDur(estimateTime(sec, state.clean).highSec)}` : "—";
+  const pay = $("#calcPay");
+  if (pay) {
+    const c = estimate(sec, state.model, state.clean);
+    pay.textContent = min ? `Pay-Tarif (optional, falls du wechselst): ~${fmtMoney(c.total)}` : "Pay-Tarif (optional): —";
+  }
 }
 
 /* ---------------- key handling ---------------- */
@@ -200,14 +260,18 @@ function initControls() {
   const eq = $("#eq");
   for (let i = 0; i < 18; i++) { const s = document.createElement("span"); s.style.animationDuration = (0.8 + (i % 5) * 0.18) + "s"; s.style.animationDelay = (i * 0.06) + "s"; eq.appendChild(s); }
 
-  const seg = (id, set) => $(id).addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; $(id).querySelectorAll("button").forEach((x) => x.classList.remove("on")); b.classList.add("on"); set(b.dataset.v); });
+  // reflect a saved value onto a segmented control's buttons
+  const applySeg = (id, val) => $(id)?.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.v === String(val)));
+  const seg = (id, set) => $(id).addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; $(id).querySelectorAll("button").forEach((x) => x.classList.remove("on")); b.classList.add("on"); set(b.dataset.v); savePrefs(); });
   seg("#lang", (v) => state.lang = v);
   seg("#model", (v) => { state.model = v; renderCalc(); });
   seg("#conc", (v) => { state.concurrency = +v; pump(); });
+  applySeg("#lang", state.lang); applySeg("#model", state.model); applySeg("#conc", state.concurrency);
 
-  $("#fmts").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; if (b.classList.contains("on") && state.formats.size === 1) return; b.classList.toggle("on"); b.classList.contains("on") ? state.formats.add(b.dataset.f) : state.formats.delete(b.dataset.f); });
   const ct = $("#cleanToggle");
-  ct.addEventListener("click", () => { state.clean = !state.clean; ct.classList.toggle("on", state.clean); ct.setAttribute("aria-checked", String(state.clean)); renderCalc(); });
+  const applyClean = () => { ct.classList.toggle("on", state.clean); ct.setAttribute("aria-checked", String(state.clean)); };
+  applyClean();
+  ct.addEventListener("click", () => { state.clean = !state.clean; applyClean(); renderCalc(); savePrefs(); });
   $("#glossary").addEventListener("input", (e) => state.glossary = e.target.value.trim());
   $("#calcMin").addEventListener("input", renderCalc);
   renderCalc();
@@ -231,9 +295,8 @@ function confirmFiles(files) {
   $("#startTitle").textContent = files.length > 1 ? `${files.length} Dateien transkribieren?` : "Transkription starten?";
   $("#startList").innerHTML = files.map((f) => `<li><span class="sf-nm">${esc(f.name)}</span><span class="sf-sz">${fmtSize(f.size)}</span></li>`).join("");
   const modelTxt = state.model.includes("turbo") ? "turbo" : "large-v3";
-  const fmtTxt = [...state.formats].map((f) => f.toUpperCase()).join(" · ");
-  const parts = [`Sprache ${state.lang.toUpperCase()}`, `Modell ${modelTxt}`, `Formate ${fmtTxt}`, `Veredelung ${state.clean ? "ein" : "aus"}`];
-  if (state.mode === "runner") parts.push(`Parallel ${state.concurrency}`);
+  const parts = [`Sprache ${state.lang.toUpperCase()}`, `Modell ${modelTxt}`, `Veredelung ${state.clean ? "ein" : "aus"}`, "alle Formate"];
+  if (files.length > 1) parts.push(`Parallel ${state.concurrency}`);
   $("#startSummary").textContent = parts.join("  ·  ");
   const m = $("#startModal"); m.hidden = false; m.style.display = "flex";
 }
@@ -347,22 +410,113 @@ function initAuthUI() {
   }
 }
 
-/* ---------------- boot ---------------- */
+/* ---------------- modes / views ---------------- */
+function setMode(m) {
+  state.mode = m;
+  ["transcribe", "history", "calc"].forEach((x) => document.body.classList.toggle("mode-" + x, x === m));
+  $("#modeSwitch").querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.m === m));
+  if (m === "calc") { renderCalc(); renderUsage(); }
+  else if (m === "history") renderHistory();
+  else pump();
+}
 function initModes() {
-  const sw = $("#modeSwitch");
-  sw.addEventListener("click", (e) => {
-    const b = e.target.closest("button"); if (!b) return;
-    sw.querySelectorAll("button").forEach((x) => x.classList.toggle("on", x === b));
-    state.mode = b.dataset.m;
-    document.body.className = "mode-" + state.mode;
-    if (state.mode === "calc") { renderCalc(); renderUsage(); }
-    else pump();
-  });
+  $("#modeSwitch").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) setMode(b.dataset.m); });
 }
 
+/* ---------------- history view ---------------- */
+const fmtDate = (ms) => { try { return new Date(ms).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" }); } catch { return ""; } };
+async function renderHistory() {
+  const wrap = $("#historyList"); if (!wrap) return;
+  let items = [];
+  try { items = await history.listTranscripts(); } catch (e) { console.warn(e); }
+  const clearBtn = $("#histClear"); if (clearBtn) clearBtn.style.display = items.length ? "" : "none";
+  if (!items.length) {
+    wrap.innerHTML = `<div class="empty"><div class="empty-mark">📂</div><h3>Noch keine Transkripte</h3><p>Transkribiere eine Datei — sie landet automatisch hier, lokal auf diesem Gerät.</p></div>`;
+    return;
+  }
+  wrap.innerHTML = items.map((it) => `
+    <article class="hcard" data-id="${esc(it.id)}">
+      <div class="hc-main">
+        <div class="hc-nm">${esc(it.name)}</div>
+        <div class="hc-meta">${fmtDate(it.dateMs)} · ${Math.round(it.duration / 60)} min · ${it.lang.toUpperCase()} · ${it.model.includes("turbo") ? "turbo" : "large-v3"} · ${it.segCount} Segmente${it.cleanText ? " · ✨" : ""}</div>
+      </div>
+      <div class="hc-actions">
+        <button class="hc-open" type="button">Öffnen</button>
+        <button class="hc-del" type="button" aria-label="Löschen" title="Löschen">✕</button>
+      </div>
+    </article>`).join("");
+  wrap.querySelectorAll(".hcard").forEach((card) => {
+    const id = card.dataset.id;
+    card.querySelector(".hc-open").onclick = async () => { const r = await history.getTranscript(id); if (r) openReader(r); };
+    card.querySelector(".hc-del").onclick = async () => { await history.deleteTranscript(id); renderHistory(); toast("Transkript gelöscht", "ok"); };
+  });
+}
+function initHistory() {
+  const clearBtn = $("#histClear");
+  if (clearBtn) clearBtn.onclick = async () => { if (confirm("Alle lokalen Transkripte löschen?")) { await history.clearAll(); renderHistory(); toast("Verlauf geleert", "ok"); } };
+}
+
+/* ---------------- reading mode ---------------- */
+let readerRec = null;
+function renderReadBody(text, query) {
+  const body = $("#readBody");
+  const q = (query || "").trim();
+  const re = q ? new RegExp("(" + q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + ")", "gi") : null;
+  const hl = (s) => { const e = esc(s); return re ? e.replace(re, "<mark>$1</mark>") : e; };
+  const paras = text.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean);
+  body.innerHTML = paras.length ? paras.map((p) => `<p>${hl(p)}</p>`).join("") : `<p class="muted">—</p>`;
+  if (re) { const first = body.querySelector("mark"); if (first) first.scrollIntoView({ block: "center", behavior: "smooth" }); }
+}
+function updateReader() {
+  if (!readerRec) return;
+  const ts = $("#readTs")?.checked;
+  const text = ts
+    ? readerRec.segs.map((s) => `[${tc(s.start, ".").slice(0, 8)}]  ${s.text}`).join("\n\n")
+    : (readerRec.cleanText || readerRec.segs.map((s) => s.text).join(" "));
+  renderReadBody(text, $("#readSearch")?.value);
+}
+function openReader(rec) {
+  readerRec = rec;
+  const { dls } = buildOutputs(rec);
+  $("#readTitle").textContent = rec.name;
+  $("#readMeta").textContent = `${Math.round(rec.duration / 60)} min · ${rec.lang.toUpperCase()} · ${rec.model.includes("turbo") ? "turbo" : "large-v3"} · ${rec.segs.length} Segmente${rec.cleanText ? " · ✨ veredelt" : ""}`;
+  $("#readDls").innerHTML = dls;
+  if ($("#readSearch")) $("#readSearch").value = "";
+  if ($("#readTs")) $("#readTs").checked = false;
+  updateReader();
+  const m = $("#readModal"); m.hidden = false; m.style.display = "flex";
+  setTimeout(() => $("#readSearch")?.focus?.(), 60);
+}
+function initReadModal() {
+  const modal = $("#readModal"); if (!modal) return;
+  const close = () => { modal.hidden = true; modal.style.display = "none"; readerRec = null; };
+  $("#readClose").onclick = close;
+  modal.addEventListener("click", (e) => { if (e.target === modal) close(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !modal.hidden) close(); });
+  $("#readSearch").addEventListener("input", updateReader);
+  $("#readTs").addEventListener("change", updateReader);
+  $("#readCopy").onclick = () => {
+    const text = readerRec ? (readerRec.cleanText || readerRec.segs.map((s) => s.text).join(" ")) : "";
+    navigator.clipboard.writeText(text); toast("Transkript kopiert", "ok");
+  };
+}
+
+/* ---------------- toasts ---------------- */
+function toast(msg, kind = "ok") {
+  const wrap = $("#toasts"); if (!wrap) return;
+  const t = document.createElement("div");
+  t.className = "toast " + kind; t.textContent = msg;
+  wrap.appendChild(t);
+  requestAnimationFrame(() => t.classList.add("in"));
+  setTimeout(() => { t.classList.remove("in"); setTimeout(() => t.remove(), 320); }, 3200);
+}
+
+/* ---------------- boot ---------------- */
 initControls();
 initStartModal();
 initKeyModal();
+initReadModal();
+initHistory();
 initAuthUI();
 initModes();
 updateStats();

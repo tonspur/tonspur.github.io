@@ -20,6 +20,22 @@ export function estimate(sec, model, withCleanup) {
   return { transcription, cleanup, total: transcription + cleanup };
 }
 
+// Rough wall-clock estimate (seconds) for a job of `sec` audio: local FLAC extraction
+// (device-bound, the slow part) + Groq transcription (fast) + optional cleanup. Returns a band.
+export function estimateTime(sec, withCleanup) {
+  const extract = sec * 0.12;                 // ffmpeg.wasm decode/encode, ~0.12× realtime (rough)
+  const transcribe = Math.max(3, sec * 0.03); // Groq large-v3 is very fast vs realtime
+  const cleanup = withCleanup ? Math.max(2, (sec / 60) * 1.2) : 0;
+  const mid = extract + transcribe + cleanup;
+  return { lowSec: mid * 0.6, highSec: mid * 1.5, midSec: mid };
+}
+
+export function fmtDur(sec) {
+  if (sec < 60) return `${Math.max(1, Math.round(sec))} s`;
+  const m = sec / 60;
+  return m < 10 ? `${m.toFixed(1)} min` : `${Math.round(m)} min`;
+}
+
 export function fmtMoney(usd) {
   const eur = usd * USD_EUR;
   if (eur < 1) return `${(eur * 100).toFixed(eur < 0.1 ? 1 : 0)} ct`;

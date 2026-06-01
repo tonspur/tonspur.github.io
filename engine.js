@@ -6,7 +6,8 @@ const CORE = "./vendor/core";
 const GROQ_TX = "https://api.groq.com/openai/v1/audio/transcriptions";
 const GROQ_CHAT = "https://api.groq.com/openai/v1/chat/completions";
 const CLEAN_MODEL = "llama-3.3-70b-versatile";
-const SEGMENT_SEC = 600;
+const SEGMENT_SEC = 480;            // chunk length (s) — FLAC 16k mono ≈ 10 MB / 480 s (< Groq 25 MB)
+const CHUNK_OVERLAP = 5;            // s of overlap so boundary words aren't cut mid-word
 const MAX_SINGLE_BYTES = 22 * 1024 * 1024;
 const CLEAN_BATCH = 6000;
 
@@ -43,33 +44,47 @@ export class FFmpegSlot {
 
     const inName = "in" + (file.name.match(/\.[a-z0-9]+$/i)?.[0] || ".bin");
     await f.writeFile(inName, await fetchFile(file));
-    const args = (out, seg) => {
-      const a = ["-i", inName, "-vn", "-ac", "1", "-ar", "16000", "-c:a", "aac", "-b:a", "64k"];
-      if (seg) a.push("-f", "segment", "-segment_time", String(SEGMENT_SEC), "-reset_timestamps", "1");
-      return a.concat(out);
-    };
 
-    await f.exec(args("out.m4a"));
-    const data = await f.readFile("out.m4a");
-    const duration = ref.dur || 0;
-
-    if (data.length <= MAX_SINGLE_BYTES) {
-      await f.deleteFile(inName).catch(() => {});
-      await f.deleteFile("out.m4a").catch(() => {});
-      return { duration, chunks: [{ blob: new Blob([data], { type: "audio/mp4" }), offset: 0 }] };
-    }
-    await f.deleteFile("out.m4a").catch(() => {});
-    await f.exec(args("seg%03d.m4a", true));
-    const files = (await f.listDir("/")).filter((e) => /^seg\d+\.m4a$/.test(e.name)).map((e) => e.name).sort();
-    const chunks = [];
-    for (let i = 0; i < files.length; i++) {
-      const d = await f.readFile(files[i]);
-      chunks.push({ blob: new Blob([d], { type: "audio/mp4" }), offset: i * SEGMENT_SEC });
-      await f.deleteFile(files[i]).catch(() => {});
-    }
+    // 1) decode once → lossless 16 kHz mono FLAC (no codec smear; Whisper's native rate)
+    await f.exec(["-i", inName, "-vn", "-ac", "1", "-ar", "16000", "-c:a", "flac", "out.flac"]);
     await f.deleteFile(inName).catch(() => {});
+    const full = await f.readFile("out.flac");
+    const duration = ref.dur || 0;
+    const mk = (d, offset) => ({ blob: new Blob([d], { type: "audio/flac" }), offset });
+
+    // small enough → one request
+    if (full.length <= MAX_SINGLE_BYTES) {
+      await f.deleteFile("out.flac").catch(() => {});
+      return { duration, chunks: [mk(full, 0)] };
+    }
+
+    // 2) overlapping slices via fast stream-copy (instant). Each chunk = [start, start+len+overlap].
+    const total = duration || Math.ceil((full.length / MAX_SINGLE_BYTES) * SEGMENT_SEC);
+    const chunks = [];
+    for (let start = 0, i = 0; start < total; start += SEGMENT_SEC, i++) {
+      const name = `seg${String(i).padStart(3, "0")}.flac`;
+      const len = SEGMENT_SEC + CHUNK_OVERLAP;
+      await f.exec(["-ss", String(start), "-t", String(len), "-i", "out.flac", "-c", "copy", name]);
+      const d = await f.readFile(name);
+      await f.deleteFile(name).catch(() => {});
+      if (d && d.length) chunks.push(mk(d, start));
+    }
+    await f.deleteFile("out.flac").catch(() => {});
     return { duration, chunks };
   }
+}
+
+// Merge per-chunk segments into one timeline; drop overlap duplicates (start within a kept segment).
+export function mergeSegments(all) {
+  const segs = all.slice().sort((a, b) => a.start - b.start || a.end - b.end);
+  const out = [];
+  let lastEnd = -1;
+  for (const s of segs) {
+    if (s.start < lastEnd - 0.1) continue;  // duplicated overlap region → skip
+    out.push(s);
+    lastEnd = Math.max(lastEnd, s.end);
+  }
+  return out;
 }
 
 // Build a rich error from a failed Groq response. Parses the rate-limit wait time
@@ -101,14 +116,15 @@ export async function retry429(fn, onWait, max = 20) {
   }
 }
 
-export async function groqTranscribe({ blob, key, model, lang, glossary }) {
+export async function groqTranscribe({ blob, key, model, lang, prompt }) {
   const fd = new FormData();
-  fd.append("file", blob, "audio.m4a");
+  fd.append("file", blob, "audio.flac");
   fd.append("model", model);
   fd.append("language", lang);
   fd.append("response_format", "verbose_json");
   fd.append("temperature", "0");
-  if (glossary) fd.append("prompt", glossary);
+  // Whisper conditions on `prompt` (glossary + tail of previous chunk) → continuity + consistent spelling.
+  if (prompt) fd.append("prompt", prompt.slice(-900));
   const res = await fetch(GROQ_TX, { method: "POST", headers: { Authorization: `Bearer ${key}` }, body: fd });
   if (!res.ok) throw await groqError(res);
   const data = await res.json();
