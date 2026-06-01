@@ -1,5 +1,5 @@
 // TONSPUR app wiring: state, parallel runner pool, rendering, cost panel, auth UI.
-import { FFmpegSlot, groqTranscribe, cleanupAll, buildTxt, buildSrt, buildVtt, buildJson } from "./engine.js";
+import { FFmpegSlot, groqTranscribe, cleanupAll, retry429, buildTxt, buildSrt, buildVtt, buildJson } from "./engine.js";
 import { estimate, fmtMoney, recordRun, getUsage } from "./cost.js";
 import * as auth from "./auth.js";
 
@@ -7,10 +7,11 @@ const $ = (s) => document.querySelector(s);
 const lsGet = (k) => { try { return localStorage.getItem(k) || ""; } catch { return ""; } };
 const lsSet = (k, v) => { try { localStorage.setItem(k, v); return true; } catch { return false; } };
 const lsDel = (k) => { try { localStorage.removeItem(k); } catch {} };
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const state = {
   mode: "single",          // single | runner | calc
-  lang: "de", model: "whisper-large-v3", formats: new Set(["txt", "srt"]),
+  lang: "en", model: "whisper-large-v3", formats: new Set(["txt", "srt"]),
   clean: true, glossary: "", concurrency: 2,
   key: lsGet("groq_key"), keyStored: true,
   account: null,          // { email } when signed in
@@ -46,11 +47,19 @@ async function runJob(job) {
       job.ui.phase(`Tonspur extrahieren … ${Math.round(p * 100)}%`, 0.05 + 0.25 * p));
     job.duration = duration;
 
+    // On 429 (Groq rate limit) wait out the countdown and retry — don't fail the job.
+    const waitFn = (label) => async (sec) => {
+      for (let left = sec; left > 0; left--) { job.ui.phase(`${label} · Groq-Limit erreicht — neuer Versuch in ${left}s …`); await sleep(1000); }
+    };
+
     let requests = 0;
     const segs = [];
     for (let i = 0; i < chunks.length; i++) {
-      job.ui.phase(`Transkribieren (Groq) … Stück ${i + 1}/${chunks.length}`, 0.35 + 0.5 * (i / chunks.length));
-      const { segments } = await groqTranscribe({ blob: chunks[i].blob, key: state.key, model: state.model, lang: job.lang, glossary: job.glossary });
+      const label = `Transkribieren (Groq) … Stück ${i + 1}/${chunks.length}`;
+      job.ui.phase(label, 0.35 + 0.5 * (i / chunks.length));
+      const { segments } = await retry429(
+        () => groqTranscribe({ blob: chunks[i].blob, key: state.key, model: state.model, lang: job.lang, glossary: job.glossary }),
+        waitFn(label));
       requests++;
       for (const s of segments) segs.push({ start: s.start + chunks[i].offset, end: s.end + chunks[i].offset, text: s.text });
     }
@@ -63,7 +72,9 @@ async function runJob(job) {
       try {
         const raw = segs.map((s) => s.text).join(" ");
         job.ui.phase("KI-Aufräumen …", 0.9);
-        job.cleanText = await cleanupAll(raw, job.lang, state.key, (p) => job.ui.phase(`KI-Aufräumen … ${Math.round(p * 100)}%`, 0.9 + 0.09 * p));
+        job.cleanText = await cleanupAll(raw, job.lang, state.key,
+          (p) => job.ui.phase(`KI-Aufräumen … ${Math.round(p * 100)}%`, 0.9 + 0.09 * p),
+          waitFn("KI-Aufräumen"));
         requests += Math.max(1, Math.ceil(raw.length / 6000));
       } catch { job.cleanText = null; }
     }
@@ -78,7 +89,10 @@ async function runJob(job) {
   } catch (e) {
     job.status = "error";
     job.ui.setState("err");
-    job.ui.error(e.message || String(e));
+    const msg = e.status === 429
+      ? "Groq Free-Tier Stundenlimit (7.200 s Audio/h) erreicht — später erneut oder weniger / kürzere Dateien gleichzeitig."
+      : (e.message || String(e));
+    job.ui.error(msg);
   } finally {
     releaseSlot(slot);
   }
@@ -138,11 +152,15 @@ function addFile(file) {
 /* ---------------- cost panel ---------------- */
 function renderUsage() {
   const u = getUsage();
-  $("#quotaVal").textContent = `${u.freeLeft} / ${u.freeLimit} frei`;
-  const min = Math.round(u.seconds / 60);
+  const usedMin = Math.round((u.secondsThisHour || 0) / 60);
+  const limitMin = Math.round(u.hourLimitSec / 60); // 120 (= 7200 s)
+  $("#quotaVal").textContent = `${usedMin} / ${limitMin} min`;
+  const dayMin = Math.round(u.seconds / 60);
   $("#quotaSub").textContent = u.requests
-    ? `heute ${u.requests} Anfragen · ~${min} min Audio · ≈ ${fmtMoney(u.usd)} (auf diesem Gerät)`
-    : `Groq Free-Tier: ~${u.freeLimit} Anfragen/Tag — reicht für sehr viele Transkripte`;
+    ? `Tag: ${u.requests} / ${u.reqLimit} Anfragen · ~${dayMin} min Audio · ≈ ${fmtMoney(u.usd)} (auf diesem Gerät)`
+    : `Tag: 0 / ${u.reqLimit} Anfragen — heute noch nichts verarbeitet`;
+  const note = $("#quotaNote");
+  if (note) note.textContent = "Groq Free-Tier limitiert Audio pro Stunde (~2 h/Std), nicht pro Tag. Große Stapel drosselt der Runner automatisch — er wartet und versucht erneut.";
 }
 function renderCalc() {
   const min = Math.max(0, parseFloat($("#calcMin").value) || 0);
@@ -197,10 +215,34 @@ function initControls() {
   const drop = $("#drop"), input = $("#file");
   drop.onclick = () => input.click();
   drop.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); input.click(); } });
-  input.onchange = () => { [...input.files].forEach(addFile); input.value = ""; };
+  input.onchange = () => { confirmFiles([...input.files]); input.value = ""; };
   ["dragover", "dragenter"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add("hot"); }));
   ["dragleave", "drop"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove("hot"); }));
-  drop.addEventListener("drop", (e) => [...e.dataTransfer.files].forEach(addFile));
+  drop.addEventListener("drop", (e) => confirmFiles([...e.dataTransfer.files]));
+}
+
+/* ---------------- start confirmation (always confirm before transcribing) ---------------- */
+let pendingFiles = [];
+const fmtSize = (b) => b >= 1e9 ? (b / 1e9).toFixed(2) + " GB" : b >= 1e6 ? Math.round(b / 1e6) + " MB" : Math.round(b / 1e3) + " KB";
+function confirmFiles(files) {
+  files = (files || []).filter((f) => f && f.size);
+  if (!files.length) return;
+  pendingFiles = files;
+  $("#startTitle").textContent = files.length > 1 ? `${files.length} Dateien transkribieren?` : "Transkription starten?";
+  $("#startList").innerHTML = files.map((f) => `<li><span class="sf-nm">${esc(f.name)}</span><span class="sf-sz">${fmtSize(f.size)}</span></li>`).join("");
+  const modelTxt = state.model.includes("turbo") ? "turbo" : "large-v3";
+  const fmtTxt = [...state.formats].map((f) => f.toUpperCase()).join(" · ");
+  const parts = [`Sprache ${state.lang.toUpperCase()}`, `Modell ${modelTxt}`, `Formate ${fmtTxt}`, `Veredelung ${state.clean ? "ein" : "aus"}`];
+  if (state.mode === "runner") parts.push(`Parallel ${state.concurrency}`);
+  $("#startSummary").textContent = parts.join("  ·  ");
+  const m = $("#startModal"); m.hidden = false; m.style.display = "flex";
+}
+function initStartModal() {
+  const modal = $("#startModal");
+  const close = () => { pendingFiles = []; modal.hidden = true; modal.style.display = "none"; };
+  $("#startCancel").onclick = close;
+  $("#startGo").onclick = () => { const fs = pendingFiles; pendingFiles = []; modal.hidden = true; modal.style.display = "none"; fs.forEach(addFile); };
+  modal.addEventListener("click", (e) => { if (e.target === modal) close(); });
 }
 
 /* ---------------- auth gate (login required) ---------------- */
@@ -319,6 +361,7 @@ function initModes() {
 }
 
 initControls();
+initStartModal();
 initKeyModal();
 initAuthUI();
 initModes();

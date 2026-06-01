@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://api.fontshare.com">
 <link rel="preconnect" href="https://cdn.fontshare.com" crossorigin>
 <link href="https://api.fontshare.com/v2/css?f[]=clash-display@600,700&f[]=satoshi@400,500,700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=12">
+<link rel="stylesheet" href="styles.css?v=13">
 </head>
 <body class="mode-single gated">
 <canvas id="bg" aria-hidden="true"></canvas>
@@ -82,7 +82,7 @@
 
   <!-- OPTIONS (single + runner) -->
   <section class="hide-calc optbar">
-    <div class="opt"><label>Sprache</label><div class="seg" id="lang"><button data-v="de" class="on">DE</button><button data-v="en">EN</button></div></div>
+    <div class="opt"><label>Sprache</label><div class="seg" id="lang"><button data-v="en" class="on">EN</button><button data-v="de">DE</button></div></div>
     <div class="opt"><label>Modell</label><div class="seg" id="model"><button data-v="whisper-large-v3" class="on">large-v3</button><button data-v="whisper-large-v3-turbo">turbo</button></div></div>
     <div class="opt"><label>Format</label><div class="chips" id="fmts"><button data-f="txt" class="on">TXT</button><button data-f="srt" class="on">SRT</button><button data-f="vtt">VTT</button><button data-f="json">JSON</button></div></div>
     <div class="opt"><label>Veredelung</label>
@@ -108,9 +108,10 @@
         <div class="cost-sub">large-v3 + KI-Veredelung · grobe Schätzung</div>
       </div>
       <div class="calc-quota">
-        <label>Heutiges Kontingent</label>
-        <div class="quota-big" id="quotaVal">2000 / 2000 frei</div>
-        <div class="cost-sub" id="quotaSub">Groq Free-Tier: ~2000 Anfragen/Tag</div>
+        <label>Audio diese Stunde</label>
+        <div class="quota-big" id="quotaVal">0 / 120 min</div>
+        <div class="cost-sub" id="quotaSub">Tag: 0 / 2000 Anfragen — heute noch nichts verarbeitet</div>
+        <div class="quota-note" id="quotaNote">Groq Free-Tier limitiert Audio pro Stunde (~2 h/Std), nicht pro Tag. Große Stapel drosselt der Runner automatisch — er wartet und versucht erneut.</div>
       </div>
     </div>
   </section>
@@ -144,7 +145,18 @@
   </div>
 </div>
 
-<script src="bg.js?v=12"></script>
-<script type="module" src="app.js?v=12"></script>
+<!-- START CONFIRM MODAL (always confirm before transcribing) -->
+<div class="modal" id="startModal" hidden>
+  <div class="modal-card panel">
+    <h2 id="startTitle">Transkription starten?</h2>
+    <ul class="start-list" id="startList"></ul>
+    <div class="start-summary" id="startSummary"></div>
+    <p class="fine">Einstellungen oben änderbar.</p>
+    <div class="modal-actions"><button id="startCancel" class="ghost">Abbrechen</button><button id="startGo">Transkribieren</button></div>
+  </div>
+</div>
+
+<script src="bg.js?v=13"></script>
+<script type="module" src="app.js?v=13"></script>
 </body>
 </html>

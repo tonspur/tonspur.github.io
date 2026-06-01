@@ -3,7 +3,10 @@
 //  cannot read live remaining quota. We therefore track usage locally per day.)
 import { PRICING, CLEANUP_PRICE, USD_EUR } from "./config.js";
 
-const FREE_REQ_PER_DAY = 2000; // Groq free-tier whisper requests/day (reference)
+// Groq free-tier whisper-large-v3 limits (reference): 2000 requests/day, 7200 audio-seconds/hour.
+// The HOURLY audio cap is what actually throttles big batches — not the daily request count.
+const FREE_REQ_PER_DAY = 2000;
+const FREE_SEC_PER_HOUR = 7200; // ~2 h of audio per clock-hour
 const USAGE_KEY = "tonspur_usage";
 
 // Estimate USD for transcribing `sec` seconds of audio with a model (+ optional cleanup).
@@ -23,21 +26,30 @@ export function fmtMoney(usd) {
   return `${eur.toFixed(2)} €`;
 }
 
-// ---- local daily usage ----
+// ---- local usage tracking (day bucket for requests/cost, rolling hour bucket for audio) ----
 function today() { return new Date().toISOString().slice(0, 10); }
+function thisHour() { return new Date().toISOString().slice(0, 13); } // YYYY-MM-DDTHH
 function read() {
-  try { const u = JSON.parse(localStorage.getItem(USAGE_KEY) || "{}"); if (u.date === today()) return u; } catch {}
-  return { date: today(), requests: 0, seconds: 0, usd: 0 };
+  let u = {};
+  try { u = JSON.parse(localStorage.getItem(USAGE_KEY) || "{}"); } catch {}
+  if (u.date !== today()) u = { date: today(), requests: 0, seconds: 0, usd: 0, hour: thisHour(), secondsThisHour: 0 };
+  if (u.hour !== thisHour()) { u.hour = thisHour(); u.secondsThisHour = 0; }
+  return u;
 }
 function write(u) { try { localStorage.setItem(USAGE_KEY, JSON.stringify(u)); } catch {} }
 
-// Record one finished job: number of Groq requests (chunks + cleanup batches), audio seconds, cost.
+// Record one finished job: Groq requests (chunks + cleanup batches), audio seconds, cost.
 export function recordRun({ requests, seconds, usd }) {
   const u = read();
   u.requests += requests || 0; u.seconds += seconds || 0; u.usd += usd || 0;
+  u.secondsThisHour += seconds || 0;
   write(u); return u;
 }
 export function getUsage() {
   const u = read();
-  return { ...u, freeLimit: FREE_REQ_PER_DAY, freeLeft: Math.max(0, FREE_REQ_PER_DAY - u.requests) };
+  return {
+    ...u,
+    reqLimit: FREE_REQ_PER_DAY, reqLeft: Math.max(0, FREE_REQ_PER_DAY - u.requests),
+    hourLimitSec: FREE_SEC_PER_HOUR, hourLeftSec: Math.max(0, FREE_SEC_PER_HOUR - (u.secondsThisHour || 0)),
+  };
 }

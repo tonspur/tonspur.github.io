@@ -72,6 +72,35 @@ export class FFmpegSlot {
   }
 }
 
+// Build a rich error from a failed Groq response. Parses the rate-limit wait time
+// from the JSON body (the only readable signal — the x-ratelimit-* headers are CORS-blocked).
+async function groqError(res) {
+  let raw = `Groq ${res.status}`;
+  try { raw = (await res.json()).error?.message || raw; } catch {}
+  let msg = raw;
+  if (res.status === 401) msg = "Ungültiger Groq-Key.";
+  else if (res.status === 429) msg = "Groq-Limit erreicht — kurz warten.";
+  else if (res.status === 413) msg = "Audio-Stück zu groß für Groq.";
+  const e = new Error(msg); e.status = res.status;
+  // "Please try again in 1m23.4s" / "...in 9.6s" → seconds
+  const m = raw.match(/try again in (?:(\d+)m)?\s*([\d.]+)s/i);
+  if (m) e.retryAfter = (+m[1] || 0) * 60 + parseFloat(m[2]);
+  return e;
+}
+
+// Retry a Groq call on 429 (rate limit). `onWait(seconds, attempt)` must update the UI
+// AND resolve after that many seconds (owns the countdown + the actual sleep).
+export async function retry429(fn, onWait, max = 20) {
+  for (let attempt = 0; ; attempt++) {
+    try { return await fn(); }
+    catch (e) {
+      if (e.status !== 429 || attempt >= max) throw e;
+      const wait = Math.min(60, e.retryAfter || 8 * Math.min(2 ** attempt, 8));
+      if (onWait) await onWait(Math.ceil(wait), attempt + 1);
+    }
+  }
+}
+
 export async function groqTranscribe({ blob, key, model, lang, glossary }) {
   const fd = new FormData();
   fd.append("file", blob, "audio.m4a");
@@ -81,14 +110,7 @@ export async function groqTranscribe({ blob, key, model, lang, glossary }) {
   fd.append("temperature", "0");
   if (glossary) fd.append("prompt", glossary);
   const res = await fetch(GROQ_TX, { method: "POST", headers: { Authorization: `Bearer ${key}` }, body: fd });
-  if (!res.ok) {
-    let msg = `Groq ${res.status}`;
-    try { msg = (await res.json()).error?.message || msg; } catch {}
-    if (res.status === 401) msg = "Ungültiger Groq-Key.";
-    if (res.status === 429) msg = "Groq-Limit erreicht — kurz warten.";
-    if (res.status === 413) msg = "Audio-Stück zu groß für Groq.";
-    const e = new Error(msg); e.status = res.status; e.headers = res.headers; throw e;
-  }
+  if (!res.ok) throw await groqError(res);
   const data = await res.json();
   const segments = (data.segments || [])
     .map((s) => ({ start: s.start, end: s.end, text: (s.text || "").trim() }))
@@ -105,7 +127,7 @@ async function groqCleanup(text, lang, key) {
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
     body: JSON.stringify({ model: CLEAN_MODEL, temperature: 0, messages: [{ role: "system", content: sys }, { role: "user", content: text }] }),
   });
-  if (!res.ok) throw new Error("cleanup " + res.status);
+  if (!res.ok) throw await groqError(res);
   return ((await res.json()).choices?.[0]?.message?.content || "").trim();
 }
 
@@ -118,10 +140,13 @@ function batchText(text) {
   if (buf) parts.push(buf);
   return parts;
 }
-export async function cleanupAll(rawText, lang, key, onProg) {
+export async function cleanupAll(rawText, lang, key, onProg, onWait) {
   const parts = batchText(rawText);
   const out = [];
-  for (let i = 0; i < parts.length; i++) { out.push(await groqCleanup(parts[i], lang, key)); onProg && onProg((i + 1) / parts.length); }
+  for (let i = 0; i < parts.length; i++) {
+    out.push(await retry429(() => groqCleanup(parts[i], lang, key), onWait));
+    onProg && onProg((i + 1) / parts.length);
+  }
   return out.join("\n\n");
 }
 
