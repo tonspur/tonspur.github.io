@@ -1,7 +1,7 @@
 // Cost estimation + local daily usage tracking.
 // (Groq returns x-ratelimit-* headers but does NOT expose them via CORS, so a browser
 //  cannot read live remaining quota. We therefore track usage locally per day.)
-import { PRICING, CLEANUP_PRICE, USD_EUR } from "./config.js?v=18";
+import { PRICING, CLEANUP_PRICE, USD_EUR } from "./config.js?v=19";
 
 // Groq free-tier whisper-large-v3 limits (reference): 2000 requests/day, 7200 audio-seconds/hour.
 // The HOURLY audio cap is what actually throttles big batches — not the daily request count.
@@ -41,6 +41,13 @@ export function fmtMoney(usd) {
   if (eur < 1) return `${(eur * 100).toFixed(eur < 0.1 ? 1 : 0)} ct`;
   return `${eur.toFixed(2)} €`;
 }
+export const usdToEur = (usd) => usd * USD_EUR;
+
+// ---- cumulative spend (paid mode) — best-effort local estimate; the real cap is Groq's Spend Limit ----
+const SPEND_KEY = "tonspur_spend_usd";
+export function getSpendUsd() { try { return +(localStorage.getItem(SPEND_KEY)) || 0; } catch { return 0; } }
+export function addSpend(usd) { const s = getSpendUsd() + (usd || 0); try { localStorage.setItem(SPEND_KEY, String(s)); } catch {} return s; }
+export function resetSpend() { try { localStorage.removeItem(SPEND_KEY); } catch {} }
 
 // ---- local usage tracking (day bucket for requests/cost, rolling hour bucket for audio) ----
 function today() { return new Date().toISOString().slice(0, 10); }

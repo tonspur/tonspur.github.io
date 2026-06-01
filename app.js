@@ -1,8 +1,8 @@
 // TONSPUR app wiring: state, transcribe pool, history, rendering, cost panel, auth UI.
-import { FFmpegSlot, groqTranscribe, cleanupAll, retry429, mergeSegments, buildTxt, buildSrt, buildVtt, buildJson, tc } from "./engine.js?v=18";
-import { estimate, estimateTime, fmtMoney, fmtDur, recordRun, getUsage } from "./cost.js?v=18";
-import * as auth from "./auth.js?v=18";
-import * as history from "./history.js?v=18";
+import { FFmpegSlot, groqTranscribe, cleanupAll, retry429, mergeSegments, buildTxt, buildSrt, buildVtt, buildJson, tc } from "./engine.js?v=19";
+import { estimate, estimateTime, fmtMoney, fmtDur, recordRun, getUsage, usdToEur, getSpendUsd, addSpend, resetSpend } from "./cost.js?v=19";
+import * as auth from "./auth.js?v=19";
+import * as history from "./history.js?v=19";
 
 const $ = (s) => document.querySelector(s);
 const lsGet = (k) => { try { return localStorage.getItem(k) || ""; } catch { return ""; } };
@@ -21,10 +21,12 @@ const state = {
   clean: prefs.clean !== undefined ? prefs.clean : true,
   glossary: "",
   concurrency: prefs.concurrency || 1,
+  billing: prefs.billing === "paid" ? "paid" : "free",   // free (rate-limited, 0 €) | paid (full speed, costs)
+  budgetEur: prefs.budgetEur > 0 ? prefs.budgetEur : 8,  // local budget guard for paid mode
   key: lsGet("groq_key"), keyStored: true,
   account: null,          // { email } when signed in
 };
-const savePrefs = () => lsSet(PREFS_KEY, JSON.stringify({ lang: state.lang, model: state.model, formats: [...state.formats], clean: state.clean, concurrency: state.concurrency }));
+const savePrefs = () => lsSet(PREFS_KEY, JSON.stringify({ lang: state.lang, model: state.model, formats: [...state.formats], clean: state.clean, concurrency: state.concurrency, billing: state.billing, budgetEur: state.budgetEur }));
 const effConc = () => state.concurrency;
 
 const queue = [];
@@ -56,6 +58,16 @@ async function runJob(job) {
     const { duration, chunks } = await slot.extract(job.file, (p) =>
       job.ui.phase(`Tonspur extrahieren … ${Math.round(p * 100)}%`, 0.05 + 0.25 * p));
     job.duration = duration;
+
+    // Paid-mode budget guard: block BEFORE any Groq call (no charge yet) if it would exceed the cap.
+    if (state.billing === "paid") {
+      const estUsd = estimate(duration, state.model, job.clean).total;
+      if (usdToEur(getSpendUsd() + estUsd) > state.budgetEur + 1e-9) {
+        const e = new Error(`Budget-Limit (${state.budgetEur} €) würde überschritten — Job nicht gestartet. Limit im Rechner erhöhen oder Datei kürzen.`);
+        e.budget = true; throw e;
+      }
+    }
+
     // Persist a "running" record now → survives a refresh/crash (shows up as interrupted with partial text).
     await putHist(job, [], null, "running", 0.3);
 
@@ -96,7 +108,9 @@ async function runJob(job) {
       } catch { job.cleanText = null; }
     }
     // record local usage (Groq doesn't expose live quota to the browser)
-    recordRun({ requests, seconds: job.duration, usd: estimate(job.duration, state.model, !!job.cleanText).total });
+    const jobUsd = estimate(job.duration, state.model, !!job.cleanText).total;
+    recordRun({ requests, seconds: job.duration, usd: jobUsd });
+    if (state.billing === "paid") addSpend(jobUsd);   // cumulative spend for the budget meter
     renderUsage();
 
     job.ui.phase("Fertig", 1);
@@ -116,9 +130,14 @@ async function runJob(job) {
         ? `Groq-Server antwortet mehrfach mit einem Fehler (${e.status}) — meist nur ein kurzer Aussetzer. Bitte in 1–2 Minuten erneut versuchen.`
         : (e.message || String(e)));
     job.ui.error(msg);
-    // keep whatever was transcribed so far (don't lose partial work)
-    try { await putHist(job, mergeSegments(job._segs || []), null, "error", job._prog || 0); } catch {}
-    toast("Transkription fehlgeschlagen", "err");
+    if (e.budget) {
+      toast(`Budget-Limit (${state.budgetEur} €) erreicht — nicht gestartet`, "err");
+      try { await history.deleteTranscript(job.histId); } catch {}   // no junk entry for a blocked job
+    } else {
+      // keep whatever was transcribed so far (don't lose partial work)
+      try { await putHist(job, mergeSegments(job._segs || []), null, "error", job._prog || 0); } catch {}
+      toast("Transkription fehlgeschlagen", "err");
+    }
   } finally {
     releaseSlot(slot);
   }
@@ -230,13 +249,21 @@ function renderUsage() {
 function renderCalc() {
   const min = Math.max(0, parseFloat($("#calcMin").value) || 0);
   const sec = min * 60;
-  $("#calcCost").textContent = "0 €";   // Free-Tier — always free
+  const paid = state.billing === "paid";
+  const c = estimate(sec, state.model, state.clean);
+  $("#calcCost").textContent = paid ? (min ? fmtMoney(c.total) : "—") : "0 €";
+  const sub = $("#calcCostSub");
+  if (sub) sub.textContent = paid ? "Bezahlt-Modus · echte Schätzung (large-v3 + Veredelung)" : "Gratis-Modus — du zahlst nichts (dafür rate-limitiert).";
   const dur = $("#calcDur"); if (dur) dur.textContent = min ? `ca. ${fmtDur(estimateTime(sec, state.clean).lowSec)}–${fmtDur(estimateTime(sec, state.clean).highSec)}` : "—";
-  const pay = $("#calcPay");
-  if (pay) {
-    const c = estimate(sec, state.model, state.clean);
-    pay.textContent = min ? `Pay-Tarif (optional, falls du wechselst): ~${fmtMoney(c.total)}` : "Pay-Tarif (optional): —";
-  }
+  renderBudget();
+}
+function renderBudget() {
+  const spentEur = usdToEur(getSpendUsd());
+  const cap = state.budgetEur || 0;
+  const sp = $("#budgetSpent"); if (sp) sp.textContent = `${spentEur.toFixed(2)} € / ${cap} €`;
+  const bar = $("#budgetBar"); if (bar) bar.style.width = (cap > 0 ? Math.min(100, spentEur / cap * 100) : 0).toFixed(1) + "%";
+  const over = cap > 0 && spentEur >= cap;
+  if (bar) bar.classList.toggle("full", over);
 }
 
 /* ---------------- key handling ---------------- */
@@ -277,7 +304,14 @@ function initControls() {
   seg("#lang", (v) => state.lang = v);
   seg("#model", (v) => { state.model = v; renderCalc(); });
   seg("#conc", (v) => { state.concurrency = +v; pump(); });
-  applySeg("#lang", state.lang); applySeg("#model", state.model); applySeg("#conc", state.concurrency);
+  seg("#billing", (v) => { state.billing = v; document.body.classList.toggle("paid", v === "paid"); renderCalc(); });
+  applySeg("#lang", state.lang); applySeg("#model", state.model); applySeg("#conc", state.concurrency); applySeg("#billing", state.billing);
+  document.body.classList.toggle("paid", state.billing === "paid");
+
+  const budgetInput = $("#budgetEur");
+  if (budgetInput) { budgetInput.value = state.budgetEur; budgetInput.addEventListener("input", () => { state.budgetEur = Math.max(0, parseFloat(budgetInput.value) || 0); renderBudget(); savePrefs(); }); }
+  const budgetReset = $("#budgetReset");
+  if (budgetReset) budgetReset.onclick = () => { resetSpend(); renderBudget(); toast("Verbrauch zurückgesetzt", "ok"); };
 
   const ct = $("#cleanToggle");
   const applyClean = () => { ct.classList.toggle("on", state.clean); ct.setAttribute("aria-checked", String(state.clean)); };

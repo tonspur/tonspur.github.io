@@ -424,4 +424,24 @@ body.gated .bar,body.gated .switch-wrap,body.gated main.wrap{display:none!import
 .toast.ok{border-color:rgba(110,231,160,.4)}
 .toast.err{border-color:rgba(255,120,120,.45)}
 
+/* ===================== v19: billing toggle + budget guard ===================== */
+.calc-row input,.budget-cap input{background:var(--ink2);border:1px solid var(--line);color:var(--cream);
+  border-radius:10px;padding:11px 12px;font-family:inherit;font-size:15px}
+.calc-row input:focus,.budget-cap input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(139,92,246,.16)}
+#budgetBox{display:none;margin-top:20px;border-top:1px solid var(--line);padding-top:18px}
+body.paid #budgetBox{display:block}
+.budget-head{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap}
+.budget-cap{display:flex;align-items:center;gap:8px;flex:none}
+.budget-cap input{width:84px}
+.budget-meter{height:9px;border-radius:999px;background:var(--ink2);border:1px solid var(--line);overflow:hidden;margin:16px 0 8px}
+.budget-meter span{display:block;height:100%;width:0;border-radius:999px;background:linear-gradient(90deg,var(--accent),var(--accent-2));transition:width .4s ease}
+.budget-meter span.full{background:linear-gradient(90deg,#ff7a7a,#ff5a5a)}
+.budget-row{display:flex;justify-content:space-between;align-items:center;font-size:13px;color:var(--cream)}
+#budgetSpent{font-family:"Clash Display",sans-serif;font-weight:600}
+#budgetReset{font-family:inherit;cursor:pointer;font-size:12px;color:var(--mut);background:none;border:1px solid var(--line);border-radius:9px;padding:6px 11px}
+#budgetReset:hover{color:var(--cream);border-color:var(--accent)}
+.budget-howto{margin-top:14px;line-height:1.65}
+.budget-howto a{color:var(--accent-2);text-decoration:none}
+.budget-howto a:hover{text-decoration:underline}
+
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}

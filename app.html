@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://api.fontshare.com">
 <link rel="preconnect" href="https://cdn.fontshare.com" crossorigin>
 <link href="https://api.fontshare.com/v2/css?f[]=clash-display@600,700&f[]=satoshi@400,500,700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=18">
+<link rel="stylesheet" href="styles.css?v=19">
 </head>
 <body class="mode-transcribe gated">
 <canvas id="bg" aria-hidden="true"></canvas>
@@ -83,6 +83,7 @@
       <div class="opt"><label>Veredelung</label>
         <button id="cleanToggle" class="switch on" role="switch" aria-checked="true"><span class="knob"></span><span class="switch-txt">KI-Aufräumen</span></button>
       </div>
+      <div class="opt"><label>Tempo <span class="optx">Gratis = gedrosselt</span></label><div class="seg" id="billing"><button data-v="free" class="on">Gratis</button><button data-v="paid">Bezahlt</button></div></div>
       <details class="adv">
         <summary>Erweitert</summary>
         <div class="adv-body">
@@ -107,21 +108,36 @@
   <div class="view only-calc">
     <p class="mode-intro">Was kostet es, wie lange dauert es — ehrlich.</p>
     <section class="panel calcpanel">
-      <div class="calc-head"><h2>Kosten &amp; Dauer</h2><p>Auf dem Groq Free-Tier ist Transkribieren <b>gratis</b>. Die Pay-Schätzung ist nur ein Was-wäre-wenn.</p></div>
+      <div class="calc-head"><h2>Kosten &amp; Dauer</h2><p id="calcModeNote">Modus <b>Gratis</b>: rate-limitiert, kostet 0 €. Modus <b>Bezahlt</b>: volle Geschwindigkeit, kostet Cent-Beträge.</p></div>
       <div class="calc-main">
         <div class="calc-input">
           <label for="calcMin">Videolänge</label>
           <div class="calc-row"><input type="number" id="calcMin" min="0" step="1" value="60"><span class="calc-unit">Minuten</span></div>
           <div class="calc-cost"><span>Kosten</span><b id="calcCost">0 €</b></div>
-          <div class="cost-sub">Groq Free-Tier — du zahlst nichts.</div>
+          <div class="cost-sub" id="calcCostSub">Groq Free-Tier — du zahlst nichts.</div>
           <div class="calc-line"><span>Dauer (ca.)</span><b id="calcDur">—</b></div>
-          <div class="cost-sub" id="calcPay">Pay-Tarif (optional): —</div>
         </div>
         <div class="calc-quota">
           <label>Audio diese Stunde</label>
           <div class="quota-big" id="quotaVal">0 / 120 min</div>
           <div class="cost-sub" id="quotaSub">Tag: 0 / 2000 Anfragen — heute noch nichts verarbeitet</div>
           <div class="quota-note" id="quotaNote">Groq Free-Tier limitiert Audio pro Stunde (~2 h/Std), kostet 0 €. Größere Stapel drosselt TONSPUR automatisch — wartet und macht weiter.</div>
+        </div>
+      </div>
+
+      <!-- Budget (paid mode) -->
+      <div class="budget-box" id="budgetBox">
+        <div class="budget-head">
+          <div><label>Budget-Wächter <span class="optx">nur Modus „Bezahlt"</span></label>
+            <div class="cost-sub">TONSPUR stoppt neue Jobs, sobald deine geschätzten Kosten das Limit erreichen.</div></div>
+          <div class="budget-cap"><input type="number" id="budgetEur" min="0" step="1" value="8"><span class="calc-unit">€ Limit</span></div>
+        </div>
+        <div class="budget-meter"><span id="budgetBar"></span></div>
+        <div class="budget-row"><span id="budgetSpent">0.00 € / 8 €</span><button id="budgetReset" type="button">zurücksetzen</button></div>
+        <div class="cost-sub budget-howto">
+          <b>So zahlst du (max. ~8 €):</b> 1) <a href="https://console.groq.com/settings/billing" target="_blank" rel="noopener">console.groq.com/settings/billing</a> → Kreditkarte hinzufügen (Developer-Tier).
+          2) <a href="https://console.groq.com/settings/billing/limits" target="_blank" rel="noopener">Billing → Limits → Add Limit</a> → <b>Spend Limit auf 8 $</b> setzen (das ist das echte harte Limit bei Groq, ≈ 7,40 €).
+          Gleicher Key — danach läuft „Bezahlt" ohne Drosselung. Transkribieren ist spottbillig (large-v3 ≈ 10 ct/Std Audio), 8 € reichen für ~70 Std.
         </div>
       </div>
     </section>
@@ -183,7 +199,7 @@
 <!-- TOASTS -->
 <div id="toasts" aria-live="polite"></div>
 
-<script src="bg.js?v=18"></script>
-<script type="module" src="app.js?v=18"></script>
+<script src="bg.js?v=19"></script>
+<script type="module" src="app.js?v=19"></script>
 </body>
 </html>
