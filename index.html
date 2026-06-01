@@ -10,7 +10,7 @@
 <link rel="preconnect" href="https://api.fontshare.com">
 <link rel="preconnect" href="https://cdn.fontshare.com" crossorigin>
 <link href="https://api.fontshare.com/v2/css?f[]=clash-display@600,700&f[]=satoshi@400,500,700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="landing.css?v=11">
+<link rel="stylesheet" href="landing.css?v=12">
 </head>
 <body>
 <canvas id="bg" aria-hidden="true"></canvas>
@@ -32,6 +32,8 @@
 
   <!-- HERO -->
   <section class="hero">
+    <canvas class="wavefx hero-wave hero-wave-l" data-hue1="316" data-hue2="272" data-amp=".9" data-speed="1.1" aria-hidden="true"></canvas>
+    <canvas class="wavefx hero-wave hero-wave-r" data-hue1="276" data-hue2="305" data-amp=".82" data-speed=".9" aria-hidden="true"></canvas>
     <div class="hero-txt reveal">
       <div class="kicker">Transkriptions-Studio</div>
       <h1>Vom Clip zum<br><span class="grad">perfekten Transkript</span>.</h1>
@@ -51,16 +53,19 @@
     <div class="mock reveal" aria-hidden="true">
       <div class="mock-glow"></div>
       <div class="mock-win">
-        <div class="mock-chrome"><span></span><span></span><span></span><i>tonspur · studio</i></div>
+        <div class="mock-chrome"><span class="r"></span><span class="y"></span><span class="g"></span><i>tonspur · studio</i></div>
         <div class="mock-body">
-          <div class="mock-eq" id="mockEq"></div>
-          <div class="mock-drop"><svg viewBox="0 0 24 24" class="i"><path d="M12 16V4M7 9l5-5 5 5M5 20h14"/></svg> Datei ablegen</div>
+          <div class="mock-drop">
+            <svg viewBox="0 0 24 24" class="i"><path d="M12 16V4M7 9l5-5 5 5M5 20h14"/></svg>
+            <div><b>Datei ablegen</b><span>oder klicken zum Auswählen</span></div>
+          </div>
           <div class="mock-job">
-            <div class="mock-ring"></div>
-            <div class="mock-jt"><b>interview_final.mp4</b><span>large-v3 · 42 min · veredelt</span></div>
+            <div class="mock-ring78"><b>78%</b></div>
+            <div class="mock-jt"><b>interview_final.mp4</b><span>Large-v3 · DE/EN · versetzt</span></div>
             <div class="mock-badge">fertig</div>
           </div>
-          <div class="mock-line"></div><div class="mock-line s"></div><div class="mock-line m"></div>
+          <div class="mock-prog"><i></i></div>
+          <div class="mock-progrow"><span>Transkribiere… 78 %</span><span>1.24 GB / 1.58 GB</span></div>
         </div>
       </div>
     </div>
@@ -71,14 +76,17 @@
     <div class="vcard reveal">
       <span class="vi"><svg viewBox="0 0 24 24" class="i"><rect x="4" y="11" width="16" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span>
       <h3>Lokal &amp; privat</h3><p>Das Video bleibt auf deinem Gerät. Nur die komprimierte Tonspur geht an die KI — sonst nichts.</p>
+      <canvas class="wavefx card-wave" data-hue1="312" data-hue2="266" data-amp=".7" data-speed="1" aria-hidden="true"></canvas>
     </div>
     <div class="vcard reveal">
       <span class="vi"><svg viewBox="0 0 24 24" class="i"><circle cx="12" cy="12" r="9"/><path d="M15 9.5a3.5 3 0 0 0-3-1.5c-1.7 0-3 .9-3 2s1.3 2 3 2 3 1 3 2-1.3 2-3 2a3.5 3 0 0 1-3-1.5M12 6v1.5M12 16.5V18"/></svg></span>
       <h3>Kostenlos</h3><p>Kein Abo. Du nutzt deinen eigenen Groq-Key mit großzügigem Free-Tier — danach Cent-Beträge.</p>
+      <canvas class="wavefx card-wave" data-hue1="288" data-hue2="262" data-amp=".7" data-speed=".85" aria-hidden="true"></canvas>
     </div>
     <div class="vcard reveal">
       <span class="vi"><svg viewBox="0 0 24 24" class="i"><path d="M12 3l2 5 5 .5-3.8 3.3L16.5 17 12 14.2 7.5 17l1.3-5.2L5 8.5 10 8z"/></svg></span>
       <h3>Beste Qualität</h3><p>Whisper large-v3 plus KI-Veredelung für Zeichensetzung, Groß-/Kleinschreibung und Korrekturen.</p>
+      <canvas class="wavefx card-wave" data-hue1="276" data-hue2="300" data-amp=".7" data-speed="1.1" aria-hidden="true"></canvas>
     </div>
   </section>
 
@@ -89,14 +97,7 @@
       <h2>In drei Schritten zum Transkript.</h2>
     </div>
     <div class="timeline reveal">
-      <svg class="tl-wave" viewBox="0 0 1200 72" preserveAspectRatio="none" aria-hidden="true">
-        <defs><linearGradient id="wv" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0" stop-color="#7c3aed" stop-opacity="0"/>
-          <stop offset=".5" stop-color="#a78bfa" stop-opacity=".95"/>
-          <stop offset="1" stop-color="#7c3aed" stop-opacity="0"/></linearGradient></defs>
-        <g class="wv-g wv-g2"><path d="M-400,40 q100,20 200,0 t200,0 t200,0 t200,0 t200,0 t200,0 t200,0 t200,0 t200,0 t200,0 t200,0 t200,0" fill="none" stroke="url(#wv)" stroke-width="1.6" stroke-opacity=".45"/></g>
-        <g class="wv-g"><path d="M-400,36 q100,-26 200,0 t200,0 t200,0 t200,0 t200,0 t200,0 t200,0 t200,0 t200,0 t200,0 t200,0 t200,0" fill="none" stroke="url(#wv)" stroke-width="2.5" stroke-linecap="round"/></g>
-      </svg>
+      <canvas class="wavefx tl-wavefx" data-hue1="314" data-hue2="264" data-amp=".95" data-speed="1.3" aria-hidden="true"></canvas>
       <div class="tl-step">
         <span class="tl-num">01</span><span class="tl-node"></span>
         <h3>Datei ablegen</h3><p>Video oder Audio per Drag &amp; Drop — bis ~500 MB, mehrere parallel.</p>
@@ -123,10 +124,12 @@
         <span class="fi"><svg viewBox="0 0 24 24" class="i"><rect x="5" y="5" width="14" height="14" rx="2"/><path d="M9 9h6v6H9zM2 9h3M2 15h3M19 9h3M19 15h3M9 2v3M15 2v3M9 19v3M15 19v3"/></svg></span>
         <h3>Whisper large-v3</h3>
         <p>Eines der genauesten Spracherkennungs-Modelle der Welt — auf Groq, rasend schnell. Feste Sprachwahl statt Raten, optimierte Audioqualität für schnelle Passagen.</p>
+        <canvas class="wavefx tile-wave" data-hue1="312" data-hue2="266" data-amp=".8" data-speed="1.05" aria-hidden="true"></canvas>
       </div>
       <div class="tile">
         <span class="fi"><svg viewBox="0 0 24 24" class="i"><path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6zM18 14l.8 2.2L21 17l-2.2.8L18 20l-.8-2.2L15 17l2.2-.8z"/></svg></span>
         <h3>KI-Veredelung</h3><p>Korrigiert Satzzeichen &amp; Fehler — ohne Wörter zu erfinden.</p>
+        <canvas class="wavefx tile-wave" data-hue1="284" data-hue2="305" data-amp=".8" data-speed=".95" aria-hidden="true"></canvas>
       </div>
       <div class="tile">
         <span class="fi"><svg viewBox="0 0 24 24" class="i"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></svg></span>
@@ -146,15 +149,17 @@
       <h2>Schneller, günstiger, privat.</h2>
     </div>
     <div class="statband reveal">
-      <div class="statseg"><div class="num" data-count="200" data-suffix="×">0</div><div class="lab">2-Std-Video in ~30&nbsp;Sekunden</div></div>
-      <div class="statseg"><div class="num" data-count="100" data-suffix=" %">0</div><div class="lab">lokal verarbeitet — privat</div></div>
-      <div class="statseg"><div class="num" data-count="0" data-suffix=" €">0</div><div class="lab">kein Abo, keine Grundgebühr</div></div>
-      <div class="statseg"><div class="num" data-count="4">0</div><div class="lab">Formate für jeden Zweck</div></div>
+      <div class="statseg"><span class="stat-ic"><svg viewBox="0 0 24 24" class="i"><path d="M13 2 3 14h7l-1 8 10-12h-7z"/></svg></span><div class="num" data-count="200" data-suffix="×">0</div><div class="lab">2-Std-Video in ~30&nbsp;Sekunden</div></div>
+      <div class="statseg"><span class="stat-ic"><svg viewBox="0 0 24 24" class="i"><path d="M3 17l5-6 4 3 5-8M3 21h18"/></svg></span><div class="num" data-count="100" data-suffix=" %">0</div><div class="lab">lokal verarbeitet — privat</div></div>
+      <div class="statseg"><span class="stat-ic"><svg viewBox="0 0 24 24" class="i"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span><div class="num" data-count="0" data-suffix=" €">0</div><div class="lab">kein Abo, keine Grundgebühr</div></div>
+      <div class="statseg"><span class="stat-ic"><svg viewBox="0 0 24 24" class="i"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span><div class="num" data-count="4">0</div><div class="lab">Formate für jeden Zweck</div></div>
     </div>
   </section>
 
   <!-- FINAL CTA -->
   <section class="section center cta-final">
+    <canvas class="wavefx cta-wave cta-wave-l" data-hue1="316" data-hue2="272" data-amp=".9" data-speed="1" aria-hidden="true"></canvas>
+    <canvas class="wavefx cta-wave cta-wave-r" data-hue1="276" data-hue2="305" data-amp=".9" data-speed=".88" aria-hidden="true"></canvas>
     <div class="reveal">
       <div class="kicker">Bereit?</div>
       <h2 class="big">Es ist Zeit, Klartext zu reden.</h2>
@@ -177,7 +182,8 @@
 
 </main>
 
-<script src="bg.js?v=11"></script>
-<script src="landing.js?v=11"></script>
+<script src="bg.js?v=12"></script>
+<script src="waves.js?v=12"></script>
+<script src="landing.js?v=12"></script>
 </body>
 </html>
